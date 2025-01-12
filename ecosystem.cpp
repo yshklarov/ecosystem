@@ -37,8 +37,8 @@ typedef struct population {
 } population;
 
 typedef struct world {
-    i32 w = 0;
-    i32 h = 0;
+    u16 w = 0;
+    u16 h = 0;
     std::vector<population> populations = {};
 } world;
 
@@ -76,16 +76,6 @@ void population_create(
                 .energy = initial_energy,
             });
     }
-}
-
-// L1 distance: Sum of X and Y distances, taking into account grid wrap-around (e.g., the distance between NW corner and
-// SE corner of grid is 2).
-i32 distance(const point &a, const point &b, i32 w, i32 h) {
-    i32 dist_x = abs(b.x - a.x);
-    dist_x = std::min(dist_x, w - dist_x);
-    i32 dist_y = abs(b.y - a.y);
-    dist_y = std::min(dist_y, h - dist_y);
-    return dist_x + dist_y;
 }
 
 // Take one time step.
@@ -162,15 +152,15 @@ void render(const world *wld, const fenster *f, int zoom) {
     }
 }
 
-void run(world *wld, i32 steps, bool display_fenster = true, int zoom = 1, bool verbose = false) {
+void run(world *wld, u32 steps, bool display_fenster = true, int zoom = 1, bool verbose = false) {
     bool forever = steps == 0;
     i64 prev_render = 0;
 
     u32 *buf = nullptr;
     struct fenster f = {
         .title = "Ecosystem Simulation",
-        .width = wld->w * zoom,
-        .height = wld->h * zoom,
+        .width = (wld->w * zoom),
+        .height = (wld->h * zoom),
         .buf = nullptr,
     };
     if (display_fenster) {
@@ -184,12 +174,12 @@ void run(world *wld, i32 steps, bool display_fenster = true, int zoom = 1, bool 
         render(wld, &f, zoom);
     }
 
-    for (i32 step = 0; true; ++step) {
+    for (u32 step = 0; true; ++step) {
         if (verbose) {
             if (steps > 0) {
-                fprintf(stdout, "Time %d/%d: Population sizes: ", step, steps);
+                fprintf(stdout, "Time %u/%u: Population sizes: ", step, steps);
             } else {
-                fprintf(stdout, "Time %d: Population sizes: ", step);
+                fprintf(stdout, "Time %u: Population sizes: ", step);
             }
             for (population &pop : wld->populations) {
                 fprintf(stdout, "%zu ", pop.organisms.size());
@@ -243,13 +233,13 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    i32 w = atoi(argv[1]);
-    i32 h = atoi(argv[2]);
+    u16 w = clamp_i32_u16(atoi(argv[1]));
+    u16 h = clamp_i32_u16(atoi(argv[2]));
     f64 rabbits = atof(argv[3]);
     f64 rabbits_max = atof(argv[4]);
     f64 foxes = atof(argv[5]);
     f64 foxes_max = atof(argv[6]);
-    i32 steps = atoi(argv[7]);
+    u32 steps = clamp_i32_u32(atoi(argv[7]));
     bool seed_given = (argc == 9);
     u64 seed = 0;
     if (seed_given) {
@@ -258,7 +248,7 @@ int main(int argc, char *argv[]) {
     bool display = true;
     int zoom = 5;
 
-    if (w < 1 || h < 1) {
+    if (w < 1 || h < 1 || w > 10'000 || h > 10'000) {
         fprintf(stderr, "Invalid world dimensions.\n");
         return EXIT_FAILURE;
     }

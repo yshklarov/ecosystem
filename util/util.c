@@ -1,4 +1,6 @@
 #include <stdint.h>
+#include <string.h>
+#include <stdio.h>
 #include <time.h>
 
 
@@ -13,6 +15,25 @@ typedef int32_t i32;
 typedef int64_t i64;
 typedef float f32;
 typedef double f64;
+
+
+/**** Clamping ****/
+
+#ifndef MIN
+#define MIN(a,b) ((a < b) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a,b) ((a < b) ? (b) : (a))
+#endif
+
+#define CLAMP(x, lower, upper) ((x < lower) ? (lower) : ((x > upper) ? (upper) : (x)))
+u16 clamp_i32_u16(i32 x) {
+    return (u16)CLAMP(x, 0, 0xFFFF);
+}
+
+u32 clamp_i32_u32(i32 x) {
+    return (u32)MAX(0, x);
+}
 
 
 /**** Random number generator ****/
@@ -36,7 +57,7 @@ void rand_init_from_seed(rand_state* x, u64 seed) {
         (void)rand_raw(x);
     }
 }
-void rand_init_from_time(rand_state *x) {
+void rand_init_from_time(rand_state* x) {
     timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     u64 seed = ts.tv_nsec;
