@@ -9,14 +9,15 @@
 
 #define FPS 60
 
-#define BLACK 0x000000
-#define WHITE 0xFFFFFF
-#define RED 0xFF0000
+#define BLACK 0x00'00'00
+#define WHITE 0xFF'FF'FF
+#define RED 0xFF'33'00
 
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 typedef float f32;
@@ -24,8 +25,8 @@ typedef double f64;
 
 
 typedef struct point {
-    i32 x = 0;
-    i32 y = 0;
+    u16 x = 0;
+    u16 y = 0;
 } point;
 
 typedef struct organism {
@@ -38,7 +39,7 @@ typedef struct population {
     i32 initial_energy = 0;
     i32 energy_delta = 0;
     i32 replication_cost = 0;
-    i32 trophic_level = 0;
+    u8 trophic_level = 0;
     size_t max_size = 0;
     u32 color = WHITE;
     std::vector<organism> organisms = {};
@@ -64,7 +65,7 @@ void add_population(
     i32 initial_energy,
     i32 energy_delta,
     i32 replication_cost,
-    i32 trophic_level,
+    u8 trophic_level,
     u32 color)
 {
     wld->populations.push_back({
@@ -78,8 +79,8 @@ void add_population(
     population &pop = wld->populations.back();
     for (size_t i = 0; i < initial_size; ++i) {
         // TODO switch RNG
-        i32 x = (i32)(rand() % wld->w);
-        i32 y = (i32)(rand() % wld->h);
+        u16 x = (u16)(rand() % wld->w);
+        u16 y = (u16)(rand() % wld->h);
         pop.organisms.push_back({
                 .pos = {.x=x, .y=y},
                 .energy = initial_energy,
@@ -115,8 +116,7 @@ void evolve(world *wld) {
                     });
                 me = &pop.organisms[i];
                 me->energy = pop.initial_energy;
-            }
-            else {
+            } else {
                 // Move.
                 me->pos.x = (me->pos.x + wld->w + (rand() % 3 - 1)) % wld->w;
                 me->pos.y = (me->pos.y + wld->h + (rand() % 3 - 1)) % wld->h;
@@ -172,43 +172,46 @@ void render(const world *wld, const fenster *f, int zoom) {
     }
 }
 
-void run(world *wld, i32 steps, bool display = true, int zoom = 1, bool verbose = false) {
-    u32 *buf = (u32 *)malloc(sizeof(u32) * wld->w * wld->h * zoom * zoom);
+void run(world *wld, i32 steps, bool display_fenster = true, int zoom = 1, bool verbose = false) {
+    bool forever = steps == 0;
+    i64 prev_render = 0;
+
+    u32 *buf = nullptr;
     struct fenster f = {
         .title = "Ecosystem Simulation",
         .width = wld->w * zoom,
         .height = wld->h * zoom,
-        .buf = buf,
+        .buf = nullptr,
     };
-    if (display) {
+    if (display_fenster) {
+        buf = (u32 *)malloc(sizeof(u32) * wld->w * wld->h * zoom * zoom);
+        f.buf = buf;
         fenster_open(&f);
-    }
 
-    i64 prev_render = 0;
-    if (display) {
         // Bugfix: no fenster display for first frame.
         fenster_sleep(1000/FPS);
         prev_render = fenster_time();
         render(wld, &f, zoom);
     }
 
-    i32 step = 0;
-    bool forever = steps == 0;
-
-    while (true) {
-        if (display && fenster_loop(&f) != 0) {
-            // User closed window?
-            break;
-        }
-
+    for (i32 step = 0; true; ++step) {
         if (verbose) {
-            fprintf(stdout, "Time %d/%d: Population sizes: ", step, steps);
+            if (steps > 0) {
+                fprintf(stdout, "Time %d/%d: Population sizes: ", step, steps);
+            } else {
+                fprintf(stdout, "Time %d: Population sizes: ", step);
+            }
             for (population &pop : wld->populations) {
                 fprintf(stdout, "%zu ", pop.organisms.size());
             }
             fprintf(stdout, "\n");
         }
-        if (display) {
+
+        if (display_fenster) {
+            if (fenster_loop(&f) != 0) {
+                // User closed window?
+                break;
+            }
             // Simple framerate controller.
             i64 now = fenster_time();
             if (now - prev_render > 1000/FPS) {
@@ -224,14 +227,14 @@ void run(world *wld, i32 steps, bool display = true, int zoom = 1, bool verbose 
         }
 
         evolve(wld);
-        ++step;
     }
 
-    if (display) {
+    if (display_fenster) {
         fenster_close(&f);
+        f.buf = nullptr;
+        free(buf);
+        buf = nullptr;
     }
-    free(buf);
-    buf = NULL;
 }
 
 int main(int argc, char *argv[]) {
