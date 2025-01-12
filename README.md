@@ -9,7 +9,7 @@ Example
 
 The simulation accepts several parameters:
 
-    $ ./ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max> <simulation_length>
+    $ ./ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max> <simulation_length> [random_seed]
     
 
 For example,

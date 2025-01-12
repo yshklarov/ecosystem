@@ -24,6 +24,34 @@ typedef float f32;
 typedef double f64;
 
 
+// JSF (Jenkins Small Fast) random number generator
+// https://burtleburtle.net/bob/rand/smallprng.html
+typedef struct jsf_state { u64 a; u64 b; u64 c; u64 d; } jsf_state;
+#define ROT32(x,k) (((x)<<(k))|((x)>>(32-(k))))
+u64 rand_raw(jsf_state* x) {
+    u64 e = x->a - ROT32(x->b, 27);
+    x->a = x->b ^ ROT32(x->c, 17);
+    x->b = x->c + x->d;
+    x->c = x->d + e;
+    x->d = e + x->a;
+    return x->d;
+}
+void rand_init_from_seed(jsf_state* x, u64 seed) {
+    u64 i;
+    x->a = 0xf1ea5eed, x->b = x->c = x->d = seed;
+    for (i=0; i<20; ++i) {
+        (void)rand_raw(x);
+    }
+}
+void rand_init_from_time(jsf_state *x) {
+    timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    u64 seed = ts.tv_nsec;
+    rand_init_from_seed(x, seed);
+}
+jsf_state rng;  // Global
+
+
 typedef struct point {
     u16 x = 0;
     u16 y = 0;
@@ -78,9 +106,8 @@ void add_population(
         });
     population &pop = wld->populations.back();
     for (size_t i = 0; i < initial_size; ++i) {
-        // TODO switch RNG
-        u16 x = (u16)(rand() % wld->w);
-        u16 y = (u16)(rand() % wld->h);
+        u16 x = (u16)(rand_raw(&rng) % wld->w);
+        u16 y = (u16)(rand_raw(&rng) % wld->h);
         pop.organisms.push_back({
                 .pos = {.x=x, .y=y},
                 .energy = initial_energy,
@@ -118,8 +145,8 @@ void evolve(world *wld) {
                 me->energy = pop.initial_energy;
             } else {
                 // Move.
-                me->pos.x = (me->pos.x + wld->w + (rand() % 3 - 1)) % wld->w;
-                me->pos.y = (me->pos.y + wld->h + (rand() % 3 - 1)) % wld->h;
+                me->pos.x = (me->pos.x + wld->w + (rand_raw(&rng) % 3 - 1)) % wld->w;
+                me->pos.y = (me->pos.y + wld->h + (rand_raw(&rng) % 3 - 1)) % wld->h;
                 me->energy += pop.energy_delta;
                 me->energy = std::min(me->energy, pop.replication_cost);  // Cap energy.
 
@@ -238,14 +265,16 @@ void run(world *wld, i32 steps, bool display_fenster = true, int zoom = 1, bool 
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 8) {
-        fprintf(stderr, "Usage: ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max> <simulation_length>\n");
+    if (argc < 8 || 9 < argc) {
+        fprintf(stderr, "Usage: ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max>\n"
+                        "                 <simulation_length> [random_seed]\n");
         fprintf(stderr, "  width, height: Size of grid, e.g., 1000 by 1000\n");
         fprintf(stderr, "  rabbits: Initial number of rabbits.\n");
         fprintf(stderr, "  rabbits_max: Maximum number of rabbits.\n");
         fprintf(stderr, "  foxes: Initial number of rabbits.\n");
         fprintf(stderr, "  foxes_max: Maximum number of foxes.\n");
-        fprintf(stderr, "  simulation_length: The number of time steps to perform before exiting. For infinite simulation, put 0.\n");
+        fprintf(stderr, "  simulation_length: Number of time steps to run. For infinite simulation, put 0.\n");
+        fprintf(stderr, "  random_seed: Seed for random number generator. If not given, will be picked randomly.\n");
         return EXIT_FAILURE;
     }
 
@@ -256,6 +285,11 @@ int main(int argc, char *argv[]) {
     f64 foxes = atof(argv[5]);
     f64 foxes_max = atof(argv[6]);
     i32 steps = atoi(argv[7]);
+    bool seed_given = (argc == 9);
+    u64 seed = 0;
+    if (seed_given) {
+        seed = (u64)atoi(argv[8]);
+    }
     bool display = true;
     int zoom = 5;
 
@@ -272,7 +306,12 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    srand(time(NULL));  // TODO better seed, and get from user
+    // Seed RNG
+    if (seed_given) {
+        rand_init_from_seed(&rng, seed);
+    } else {
+        rand_init_from_time(&rng);
+    }
 
     world wld{.w=w, .h=h};
 
