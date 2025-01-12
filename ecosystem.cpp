@@ -1,55 +1,18 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-
 #include <vector>
 
 #include "fenster.h"
+
+#include "util/util.c"
+
 
 #define FPS 60
 
 #define BLACK 0x00'00'00
 #define WHITE 0xFF'FF'FF
 #define RED 0xFF'33'00
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-typedef float f32;
-typedef double f64;
-
-
-// JSF (Jenkins Small Fast) random number generator
-// https://burtleburtle.net/bob/rand/smallprng.html
-typedef struct jsf_state { u64 a; u64 b; u64 c; u64 d; } jsf_state;
-#define ROT32(x,k) (((x)<<(k))|((x)>>(32-(k))))
-u64 rand_raw(jsf_state* x) {
-    u64 e = x->a - ROT32(x->b, 27);
-    x->a = x->b ^ ROT32(x->c, 17);
-    x->b = x->c + x->d;
-    x->c = x->d + e;
-    x->d = e + x->a;
-    return x->d;
-}
-void rand_init_from_seed(jsf_state* x, u64 seed) {
-    u64 i;
-    x->a = 0xf1ea5eed, x->b = x->c = x->d = seed;
-    for (i=0; i<20; ++i) {
-        (void)rand_raw(x);
-    }
-}
-void rand_init_from_time(jsf_state *x) {
-    timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    u64 seed = ts.tv_nsec;
-    rand_init_from_seed(x, seed);
-}
-jsf_state rng;  // Global
 
 
 typedef struct point {
@@ -79,14 +42,14 @@ typedef struct world {
     std::vector<population> populations = {};
 } world;
 
-bool coincide(point a, point b) {
+inline bool coincide(point a, point b) {
     return a.x == b.x && a.y == b.y;
 }
 
 // Add a new population, with population_size distinct organisms. Positions are chosen randomly, independently, and
 // uniformly (this means that it's possible for multiple organisms to occupy a single site). The organisms will have
 // (initial) energy and other parameters as given.
-void add_population(
+void population_create(
     world *wld,
     size_t initial_size,
     size_t max_size,
@@ -106,8 +69,8 @@ void add_population(
         });
     population &pop = wld->populations.back();
     for (size_t i = 0; i < initial_size; ++i) {
-        u16 x = (u16)(rand_raw(&rng) % wld->w);
-        u16 y = (u16)(rand_raw(&rng) % wld->h);
+        u16 x = (u16)(rand_raw() % wld->w);
+        u16 y = (u16)(rand_raw() % wld->h);
         pop.organisms.push_back({
                 .pos = {.x=x, .y=y},
                 .energy = initial_energy,
@@ -145,8 +108,8 @@ void evolve(world *wld) {
                 me->energy = pop.initial_energy;
             } else {
                 // Move.
-                me->pos.x = (me->pos.x + wld->w + (rand_raw(&rng) % 3 - 1)) % wld->w;
-                me->pos.y = (me->pos.y + wld->h + (rand_raw(&rng) % 3 - 1)) % wld->h;
+                me->pos.x = (me->pos.x + wld->w + (rand_raw() % 3 - 1)) % wld->w;
+                me->pos.y = (me->pos.y + wld->h + (rand_raw() % 3 - 1)) % wld->h;
                 me->energy += pop.energy_delta;
                 me->energy = std::min(me->energy, pop.replication_cost);  // Cap energy.
 
@@ -265,6 +228,8 @@ void run(world *wld, i32 steps, bool display_fenster = true, int zoom = 1, bool 
 }
 
 int main(int argc, char *argv[]) {
+    /**** Parse command-line arguments, and setup ****/
+
     if (argc < 8 || 9 < argc) {
         fprintf(stderr, "Usage: ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max>\n"
                         "                 <simulation_length> [random_seed]\n");
@@ -306,17 +271,20 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Seed RNG
+    /**** Seed RNG ****/
+
     if (seed_given) {
-        rand_init_from_seed(&rng, seed);
+        rand_init_from_seed(&rand_state_global, seed);
     } else {
-        rand_init_from_time(&rng);
+        rand_init_from_time(&rand_state_global);
     }
 
     world wld{.w=w, .h=h};
 
+    /**** Populate world ****/
+
     // Rabbits
-    add_population(
+    population_create(
         &wld,
         rabbits,
         rabbits_max,
@@ -327,7 +295,7 @@ int main(int argc, char *argv[]) {
         WHITE);
 
     // Foxes
-    add_population(
+    population_create(
         &wld,
         foxes,
         foxes_max,
@@ -336,6 +304,8 @@ int main(int argc, char *argv[]) {
         400,
         2,
         RED);
+
+    /**** Simulate ****/
 
     run(&wld, steps, display, zoom, true);
 
