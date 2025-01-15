@@ -8,4 +8,4 @@ $(PROJECT): $(PROJECT).cpp util/util.c
 	$(CC) $(CC_OPTS) -isystem $(INCLUDE_DIRS) -o $(PROJECT) $(PROJECT).cpp $(LINKER_OPTS)
 
 clean:
-	rm $(PROJECT)
+	rm -f $(PROJECT)

@@ -1,0 +1,36 @@
+{
+    "width": 128,
+    "height": 128,
+    "simulation_length": null,
+    "random_seed": null,
+    "populations": [
+        {
+            "name": "rabbit",
+            "color": "0xFF'FF'FF",
+            "trophic_level": 1,
+            "motile": true,
+            "initial_population": 1000,
+            "energy_at_birth": 10,
+            "energy_maximum": 30,
+            "energy_delta_baseline": 1,
+            "energy_delta_move": 0,
+            "energy_delta_replicate": -10,
+            "energy_threshold_replicate": 25,
+            "replication_space_needed": 1
+        },
+        {
+            "name": "fox",
+            "color": "0xFF'33'00",
+            "trophic_level": 2,
+            "motile": true,
+            "initial_population": 1000,
+            "energy_at_birth": 100,
+            "energy_maximum": 500,
+            "energy_delta_baseline": -1,
+            "energy_delta_move": -1,
+            "energy_delta_replicate": -200,
+            "energy_threshold_replicate": 400,
+            "replication_space_needed": 8
+        }
+    ]
+}
