@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
@@ -13,6 +14,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
@@ -63,12 +65,60 @@ void rand_init_from_seed(rand_state* x, u64 seed) {
 void rand_init_from_time(rand_state* x) {
     struct timeval tv;
     gettimeofday(&tv, nullptr);
-    u64 seed = tv.tv_usec;
+    u64 seed = (u64)tv.tv_usec;
     rand_init_from_seed(x, seed);
 }
 rand_state rand_state_global;
+
 inline u64 rand_raw(void) {
     return rand_raw_s(&rand_state_global);
+}
+
+// Generate a random integer in the closed interval [min, max].
+// Parameters:
+//   min <= max.
+u32 rand_unif(u32 min, u32 max) {
+    if (min < max) {
+        // For uniformity, it's necessary that maximum delta (2^32 - 1) be much smaller than the maximum value of
+        // rand_raw() (2^64 - 1).
+        u32 raw = (u32)(rand_raw() % (u64)(max - min + 1));
+        return min + raw;
+    } else {
+        return min;
+    }
+}
+
+u32 rand_bool() {
+    return rand_raw() % 2;
+}
+
+
+// Randomly pick a combination uniformly from the (n choose k) possibilities. Store the result in combination.
+// Implements Robert Floyd's algorithm.
+// Parameters:
+//    n, k: Will choose k random elements of combination to be true, and n - k to be false.
+//    combination: Must point to contiguous array of n bools.
+void rand_combination(u32 n, u32 k, bool combination[n]) {
+    assert(n >= k);
+    for (u32 i = 0; i < n; ++i) {
+        combination[i] = false;
+    }
+    for (u32 j = n - k; j < n; ++j) {
+        u32 r = rand_unif(0, j);
+        if (combination[r]) {
+            combination[j] = true;
+        } else {
+            combination[r] = true;
+        }
+    }
+    /*
+    // DEBUG
+    std::cerr << "Selected random combination (" << n << ", " << k << "): ";
+    for (int i {0}; i < n; ++i) {
+        std::cerr << (combination[i] ? "1" : "0") << " ";
+    }
+    std::cerr << std::endl;
+    */
 }
 
 
@@ -121,7 +171,13 @@ buffer buffer_create(char const* content) {
         if (len == 0) {
             return empty_buffer;
         } else {
-            return (buffer){ len, len, (char*)malloc(sizeof(char) * len) };
+            buffer buf = { len, len, (char*)malloc(sizeof(char) * len) };
+            char const* src = content;
+            char* dst = buf.p;
+            for (size_t i = 0; i < len; ++i) {
+                *(dst++) = *(src++);
+            }
+            return buf;
         }
     }
 }
@@ -162,7 +218,7 @@ buffer buffer_create_from_file(char const* filename) {
         fprintf(stderr, "[ERROR] Failed to open file %s: %s\n", filename, strerror(errno));
         return buf;
     }
-    char c = {};
+    int c = {};
     while ((c = getc(f)) != EOF) {
         if (buf.len == buf.len_max) {
             if (0 != buffer_expand(&buf)) {
@@ -170,7 +226,7 @@ buffer buffer_create_from_file(char const* filename) {
                 return buf;
             }
         }
-        buf.p[buf.len++] = c;
+        buf.p[buf.len++] = (char)c;
     }
     fclose(f);
     buffer_compress(&buf);
@@ -195,10 +251,20 @@ typedef enum json_type : u8 {
     JSON_TYPE_FLOATING,
     JSON_TYPE_BOOLEAN,
     JSON_TYPE_NULL,
+    JSON_TYPES_COUNT
 } json_type;
 
-char const* json_type_name[] = {
-    "object", "array", "string", "integer", "floating", "boolean", "null" };
+//char const* json_type_name[JSON_TYPES_COUNT] = {
+//    "object", "array", "string", "integer", "floating", "boolean", "null" };
+static constexpr char json_type_name[JSON_TYPES_COUNT][10] = {
+    [JSON_TYPE_OBJECT] = "object\0",
+    [JSON_TYPE_ARRAY] = "array\0",
+    [JSON_TYPE_STRING] = "string\0",
+    [JSON_TYPE_INTEGER] = "integer\0",
+    [JSON_TYPE_FLOATING] = "floating\0",
+    [JSON_TYPE_BOOLEAN] = "boolean\0",
+    [JSON_TYPE_NULL] = "null\0",
+};
 
 typedef union json_datum {
     buffer string;
@@ -275,6 +341,10 @@ void json_value_printf(json_value const* v, u8 indent_level) {
     case JSON_TYPE_NULL:
         printf("null");
         break;
+    default:
+        fprintf(stderr, "[ERROR] Cannot print: Unhandled type.\n");
+        exit(1);
+        break;
     }
     if (v->next) {
         printf(",\n");
@@ -302,7 +372,7 @@ void json_data_printf(json_data* data) {
 */
 
 json_value* json_value_create(void) {
-    return (json_value*)calloc(sizeof(json_value), 1);
+    return (json_value*)calloc(1, sizeof(json_value));
 }
 
 // Free (and invalidate) value, including all siblings and children.
@@ -653,7 +723,7 @@ int json_parse_value_number(
         integer *= -1;
     }
     if (is_floating) {
-        f64 floating = integer;
+        f64 floating = (f64)integer;
         for (int i = 0; i < fractional_digits; ++i) {
             floating *= (f64)0.1;
         }

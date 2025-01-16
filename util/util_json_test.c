@@ -13,8 +13,19 @@ int main(int argc, [[maybe_unused]] char* argv[argc+1]) {
         json_data_destroy(&data);
     } else {
         printf("Failed to parse JSON file %s.\n", filename);
-        return 2;
+        return EXIT_FAILURE;
     }
-    return 0;
+    /*
+    // Test rand_unif().
+    rand_init_from_time(&rand_state_global);
+    size_t count[6] = {};
+    for (int i = 0; i < 6000000; ++i) {
+        ++count[rand_unif(1, 6)-1];
+    }
+    for (int i = 0; i < 6; ++i) {
+        printf("%zu ", count[i]);
+    }
+    printf("\n");
+    */
+    return EXIT_SUCCESS;
 }
-
