@@ -97,7 +97,7 @@ typedef struct world {
 } world;
 
 // Return a pointer to the organism wld->map[y][x][pop].
-inline organism* world_map_idx(world const* wld, u16 x, u16 y, u16 pop) {
+organism* world_map_idx(world const* wld, u16 x, u16 y, u16 pop) {
     return &wld->map[(wld->params.population_count)*(y*(wld->w) + x) + pop];
 }
 
@@ -354,7 +354,7 @@ void run(world* wld, u8 zoom, bool verbose) {
         .buf = nullptr,
     };
     if (display_fenster) {
-        buf = (u32 *)malloc((sizeof *buf) * wld->w * wld->h * zoom * zoom);
+        buf = malloc((sizeof *buf) * wld->w * wld->h * zoom * zoom);
         f.buf = buf;
         fenster_open(&f);
 
@@ -447,8 +447,7 @@ int main(int argc, char* argv[]) {
 
     char const* const filename = "config/foxes_and_rabbits.json";
     json_data data = {};
-    bool json_read_error = json_read_from_file(filename, &data);
-    if (json_read_error) {
+    if (!json_read_from_file(filename, &data)) {
         fprintf(stderr, "Failed to parse JSON file %s.\n", filename);
         return EXIT_FAILURE;
     }

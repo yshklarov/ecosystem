@@ -59,7 +59,7 @@ void rand_init_from_seed(rand_state* x, u64 seed) {
     u64 i;
     x->a = 0xf1ea5eed, x->b = x->c = x->d = seed;
     for (i=0; i<20; ++i) {
-        (void)rand_raw_s(x);
+        rand_raw_s(x);
     }
 }
 void rand_init_from_time(rand_state* x) {
@@ -145,10 +145,15 @@ bool buffer_valid(buffer const buf) {
     return true;
 }
 
-void buffer_printf(buffer buf, FILE* stream) {
+// Print contents of buf to stream.
+// Return: true on success; false on failure.
+bool buffer_printf(buffer buf, FILE* stream) {
     for (size_t i = 0; i < buf.len; ++i) {
-        putc(buf.p[i], stream);
+        if (putc(buf.p[i], stream) == EOF) {
+            return false;
+        }
     }
+    return true;
 }
 
 /* Deallocate buf. After the call, buf will point to a valid (but empty, of length 0) buffer. */
@@ -171,7 +176,7 @@ buffer buffer_create(char const* content) {
         if (len == 0) {
             return empty_buffer;
         } else {
-            buffer buf = { len, len, (char*)malloc(sizeof(char) * len) };
+            buffer buf = { len, len, malloc(sizeof(char) * len) };
             char const* src = content;
             char* dst = buf.p;
             for (size_t i = 0; i < len; ++i) {
@@ -182,8 +187,8 @@ buffer buffer_create(char const* content) {
     }
 }
 
-/* Attempt to expand the buffer's maximum length. Do not modify contents. Return 0 on success. */
-int buffer_expand(buffer *buf) {
+/* Attempt to expand the buffer's maximum length. Do not modify contents. Return true on success. */
+bool buffer_expand(buffer *buf) {
     size_t new_len = (size_t)(buf->len_max + buf->len_max / 2);
     if (new_len == 0) {
         // This is the first allocation for this buffer.
@@ -192,11 +197,11 @@ int buffer_expand(buffer *buf) {
     char* new_p = (char*)realloc(buf->p, new_len);
     if (new_p == nullptr) {
         fprintf(stderr, "[ERROR] Failed to allocate memory: %s\n", strerror(errno));
-        return 1;
+        return false;
     }
     buf->p = new_p;
     buf->len_max = new_len;
-    return 0;
+    return true;
 }
 
 /* Reclaim unused/unneeded memory at end of buffer. Does not change buf's contents or length. */
@@ -221,7 +226,7 @@ buffer buffer_create_from_file(char const* filename) {
     int c = {};
     while ((c = getc(f)) != EOF) {
         if (buf.len == buf.len_max) {
-            if (0 != buffer_expand(&buf)) {
+            if (!buffer_expand(&buf)) {
                 buffer_destroy(&buf);
                 return buf;
             }
@@ -361,16 +366,6 @@ void json_data_printf(json_data* data) {
     }
 }
 
-/*void json_data_create(json_data* data) {
-    *data = (json_value*)malloc((sizeof **data));
-    strncpy((**data).name, "JSON", 64);
-    (**data).type = JSON_TYPE_OBJECT;
-    (**data).datum.integer = 0;
-    (**data).next = nullptr;
-    (**data).child = nullptr;
-}
-*/
-
 json_value* json_value_create(void) {
     return (json_value*)calloc(1, sizeof(json_value));
 }
@@ -421,8 +416,8 @@ void json_data_destroy(json_data* data) {
 }
 
 // Consume a single character ch, if it is at offset. If the incorrect character is found, or if offset is the end of
-// the buffer, return 0. Otherwise, increment offset and return a nonzero value.
-int json_parse_eat_char(
+// the buffer, return false. Otherwise, increment offset and return true.
+bool json_parse_eat_char(
     buffer buf,
     size_t* offset,
     char ch
@@ -431,16 +426,16 @@ int json_parse_eat_char(
         fprintf(stderr,
                 "[ERROR] Bad parse at offset %zu: Expected '%c' (0x%X); observed end of buffer.",
                 *offset, ch, ch);
-        return 1;
+        return false;
     }
     if (buf.p[*offset] != ch) {
         fprintf(stderr,
                 "[ERROR] Bad parse at offset %zu: Expected '%c' (0x%X), observed '%c' (0x%X).\n",
                 *offset, ch, ch, buf.p[*offset], buf.p[*offset]);
-        return 1;
+        return false;
     }
     ++(*offset);
-    return 0;
+    return true;
 }
 
 // Attempt to consume the entire string (excluding null terminator). If the string is consumed, increment offset
@@ -448,9 +443,9 @@ int json_parse_eat_char(
 // Parameters:
 //   string: null-terminated string.
 // Return:
-//   0: The string was consumed.
-//   1: The string was not consumed.
-int json_parse_eat_string(
+//   true: The string was consumed.
+//   false: The string was not consumed.
+bool json_parse_eat_string(
     buffer buf,
     size_t* offset,
     char const* string
@@ -459,14 +454,14 @@ int json_parse_eat_string(
     char const* ch = string;
     while (*ch) {
         //fprintf(stderr, "[DEBUG] %zu ?= %s\n", offset_new, ch);
-        if (0 != json_parse_eat_char(buf, &offset_new, *ch)) {
+        if (!json_parse_eat_char(buf, &offset_new, *ch)) {
             fprintf(stderr, "[ERROR] Bad parse: Expected string \"%s\" at offset %zu.\n", string, *offset);
-            return 1;
+            return false;
         }
         ++ch;
     }
     *offset = offset_new;
-    return 0;
+    return true;
 }
 
 // Eat all leading whitespace at offset. Will never eat past end-of-buffer, but it's possible that
@@ -480,27 +475,27 @@ void json_parse_eat_whitespaces(
     }
 }
 
-int json_parse_value(
+bool json_parse_value(
     buffer buf,
     size_t* offset,
     json_value* value,
     bool expect_name);
 
-int json_parse_value_null(
+bool json_parse_value_null(
     buffer buf,
     size_t* offset,
     json_value* value
     ) {
     json_parse_eat_whitespaces(buf, offset);
-    if (0 != json_parse_eat_string(buf, offset, "null")) {
+    if (!json_parse_eat_string(buf, offset, "null")) {
         fprintf(stderr, "[ERROR] Bad parse: Invalid 'null' at offset %zu.\n", *offset);
-        return 1;
+        return false;
     }
     value->type = JSON_TYPE_NULL;
-    return 0;
+    return true;
 }
 
-int json_parse_value_boolean(
+bool json_parse_value_boolean(
     buffer buf,
     size_t* offset,
     json_value* value
@@ -508,7 +503,7 @@ int json_parse_value_boolean(
     json_parse_eat_whitespaces(buf, offset);
     if (*offset >= buf.len) {
         fprintf(stderr, "[ERROR] Bad parse: Buffer overrun.\n");
-        return 1;
+        return false;
     }
     bool v = false;
     char initial = buf.p[*offset];
@@ -524,24 +519,24 @@ int json_parse_value_boolean(
         break;
     }
     char const* const v_str = v ? "true" : "false";
-    if (0 != json_parse_eat_string(buf, offset, v_str)) {
+    if (!json_parse_eat_string(buf, offset, v_str)) {
         fprintf(stderr, "[ERROR] Bad parse: Invalid boolean at offset %zu.\n", *offset);
-        return 1;
+        return false;
     }
     value->type = JSON_TYPE_BOOLEAN;
     value->datum.boolean = v;
-    return 0;
+    return true;
 }
 
-int json_parse_value_string(
+bool json_parse_value_string(
     buffer buf,
     size_t* offset,
     json_value* value
     ) {
     json_parse_eat_whitespaces(buf, offset);
-    if (0 != json_parse_eat_char(buf, offset, '"')) {
+    if (!json_parse_eat_char(buf, offset, '"')) {
         fprintf(stderr, "[ERROR] Bad parse: Invalid string at offset %zu.\n", *offset);
-        return 1;
+        return false;
     }
 
     size_t offset_new = *offset;
@@ -549,10 +544,10 @@ int json_parse_value_string(
     buffer str = buffer_create("");
     while (offset_new < buf.len && *ch != '"') {
         if (str.len == str.len_max) {
-            if (0 != buffer_expand(&str)) {
+            if (!buffer_expand(&str)) {
                 fprintf(stderr, "[ERROR] Bad parse: Failed to allocate memory at offset %zu.\n", *offset);
                 buffer_destroy(&str);
-                return 1;
+                return false;
             }
         }
         str.p[str.len++] = *ch;
@@ -561,19 +556,19 @@ int json_parse_value_string(
     }
     if (offset_new == buf.len) {
         fprintf(stderr, "[ERROR] Bad parse: Unterminated string at offset %zu.\n", *offset);
-        return 1;
-    } else if (0 != json_parse_eat_char(buf, &offset_new, '"')) {
+        return false;
+    } else if (!json_parse_eat_char(buf, &offset_new, '"')) {
         fprintf(stderr, "[ERROR] Bad parse: Bad string terminator at offset %zu.\n", *offset);
-        return 1;
+        return false;
     }
 
     *offset = offset_new;
     value->datum.string = str;
     value->type = JSON_TYPE_STRING;
-    return 0;
+    return true;
 }
 
-int json_parse_value_aggregate(
+bool json_parse_value_aggregate(
     buffer buf,
     size_t* offset,
     json_value* value,
@@ -582,12 +577,12 @@ int json_parse_value_aggregate(
     char closer
     ) {
     json_parse_eat_whitespaces(buf, offset);
-    if (0 != json_parse_eat_char(buf, offset, opener)) {
+    if (!json_parse_eat_char(buf, offset, opener)) {
         fprintf(stderr,
                 "[ERROR] Bad parse: Could not find correct aggregate opener '%c' at offzet %zu.\n",
                 opener,
                 *offset);
-        return 1;
+        return false;
     }
     size_t offset_new = *offset;
     bool got_first_child = false;
@@ -628,7 +623,7 @@ int json_parse_value_aggregate(
             json_value_append_child(value, child);
             // Objects' ({...}) children are named; arrays' ([...]) children are not.
             bool expect_name = type == JSON_TYPE_OBJECT;
-            if (0 != json_parse_value(buf, &offset_new, child, expect_name)) {
+            if (!json_parse_value(buf, &offset_new, child, expect_name)) {
                 fprintf(stderr, "[ERROR] Bad parse: Could not parse value at offset %zu.\n", offset_new);
                 failure = true;
                 break;
@@ -639,15 +634,15 @@ int json_parse_value_aggregate(
     }
     if (failure) {
         json_value_destroy_all_children(value);
-        return 1;
+        return false;
     } else {
         *offset = offset_new;
         value->type = type;
-        return 0;
+        return true;
     }
 }
 
-int json_parse_value_object(
+bool json_parse_value_object(
     buffer buf,
     size_t* offset,
     json_value* value
@@ -655,7 +650,7 @@ int json_parse_value_object(
     return json_parse_value_aggregate(buf, offset, value, JSON_TYPE_OBJECT, '{', '}');
 }
 
-int json_parse_value_array(
+bool json_parse_value_array(
     buffer buf,
     size_t* offset,
     json_value* value
@@ -663,7 +658,7 @@ int json_parse_value_array(
     return json_parse_value_aggregate(buf, offset, value, JSON_TYPE_ARRAY, '[', ']');
 }
 
-int json_parse_value_number(
+bool json_parse_value_number(
     buffer buf,
     size_t* offset,
     json_value* value
@@ -685,7 +680,7 @@ int json_parse_value_number(
         } else if (got_digit && '.' == ch) {
             if (is_floating == true) {
                 fprintf(stderr, "[ERROR] Bad parse: Too many decimal points at offset %zu.\n", offset_new);
-                return 1;
+                return false;
             }
             is_floating = true;
         } else if ('0' <= ch && ch <= '9') {
@@ -694,7 +689,7 @@ int json_parse_value_number(
             if (integer > (INT64_MAX - (i64)9) / (i64)10) {
                 if (!is_floating) {
                     fprintf(stderr, "[ERROR] Bad parse: Integer overflow at offset %zu.\n", offset_new);
-                    return 1;
+                    return false;
                 } else {
                     fprintf(stderr, "[WARNING] Ignoring high-precision digits at offset %zu.\n", offset_new);
                 }
@@ -715,7 +710,7 @@ int json_parse_value_number(
     }
     if (is_floating && !got_digit_after_point) {
         fprintf(stderr, "[ERROR] Bad parse: Decimal point without subsequent digit at offset %zu.\n", offset_new);
-        return 1;
+        return false;
     }
 
     // Construct the number.
@@ -735,7 +730,7 @@ int json_parse_value_number(
     }
 
     *offset = offset_new;
-    return 0;
+    return true;
 }
 
 /* Parse buf at offset, reading a single JSON value into value. Write into new_offset the location (within buf) one past
@@ -750,9 +745,9 @@ int json_parse_value_number(
  * If this call is successful, offset will be updated to point to after the value. If unsuccessful, offset will not be
  * unmodified.
  *
- * Return: 0 on success, nonzero on parse error.
+ * Return: true on success, false if there was an error.
  */
-int json_parse_value(
+bool json_parse_value(
     buffer buf,
     size_t* offset,
     json_value* value,
@@ -763,63 +758,62 @@ int json_parse_value(
     json_parse_eat_whitespaces(buf, &offset_new);
     if (offset_new >= buf.len) {
         fprintf(stderr, "[ERROR] Bad parse: Unexpected end-of-buffer.\n");
-        return 1;
+        return false;
     }
 
     if (expect_name) {
         // Parse the name (a string).
         if (buf.p[offset_new] != '"') {
             fprintf(stderr, "[ERROR] Bad parse: Expected value name at offset %zu, but did not find a string.\n", offset_new);
-            return 1;
+            return false;
         }
         value->name = json_value_create();
-        int rtn = json_parse_value_string(buf, &offset_new, value->name);
-        if (rtn != 0) {
-            return rtn;
+        if(!json_parse_value_string(buf, &offset_new, value->name)) {
+            return false;
         }
         json_parse_eat_whitespaces(buf, &offset_new);
-        if (0 != json_parse_eat_char(buf, &offset_new, ':')) {
+        if (!json_parse_eat_char(buf, &offset_new, ':')) {
             fprintf(stderr, "[ERROR] Bad parse: Failed to find ':' after offset %zu.\n", offset_new);
-            return 1;
+            return false;
         }
         json_parse_eat_whitespaces(buf, &offset_new);
     }
 
     if (offset_new >= buf.len) {
         fprintf(stderr, "[ERROR] Bad parse: Unexpected end-of-buffer.\n");
-        return 1;
+        return false;
     }
 
     // Parse the JSON value.
     char initial = buf.p[offset_new];
-    bool bad_parse = false;
+    bool good_parse = true;
     if ('{' == initial) {
-        bad_parse = json_parse_value_object(buf, &offset_new, value);
+        good_parse = json_parse_value_object(buf, &offset_new, value);
     } else if ('[' == initial) {
-        bad_parse = json_parse_value_array(buf, &offset_new, value);
+        good_parse = json_parse_value_array(buf, &offset_new, value);
     } else if ('"' == initial) {
-        bad_parse = json_parse_value_string(buf, &offset_new, value);
+        good_parse = json_parse_value_string(buf, &offset_new, value);
     } else if ('n' == initial) {
-        bad_parse = json_parse_value_null(buf, &offset_new, value);
+        good_parse = json_parse_value_null(buf, &offset_new, value);
     } else if ('t' == initial || 'f' == initial) {
-        bad_parse = json_parse_value_boolean(buf, &offset_new, value);
+        good_parse = json_parse_value_boolean(buf, &offset_new, value);
     } else if ('-' == initial || ('0' <= initial && initial <= '9')) {
-        bad_parse = json_parse_value_number(buf, &offset_new, value);
+        good_parse = json_parse_value_number(buf, &offset_new, value);
     } else {
         fprintf(stderr,
                 "[ERROR] Bad parse: Unexpected character '%c' (0x%X) at buffer offset %zu. Expected a JSON value, instead.\n",
                 initial, initial, offset_new);
-        bad_parse = true;
+        good_parse = false;
     }
-    if (bad_parse) {
-        return 1;
+    if (!good_parse) {
+        return false;
     }
 
     *offset = offset_new;
-    return 0;
+    return true;
 }
 
-int json_parse_nothing_until_end(
+bool json_parse_nothing_until_end(
     buffer buf,
     size_t* offset
     ) {
@@ -831,51 +825,49 @@ int json_parse_nothing_until_end(
                  ? "[ERROR] Bad parse: Unexpected character '%c' (0x%X) found at offset %zu.\n"
                  : "[ERROR] Bad parse: Buffer overrun.\n"),
                 buf.p[*offset], buf.p[*offset], *offset);
-        return 1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 /* Parse JSON string data from buf, storing it in data.
  * Parameters:
  *   buf: Stores textual data, to be parsed as JSON.
  *   data: Must be uninitialized and unallocated. Will be written to.
- * Return: 0 on success, nonzero on failure.
+ * Return: true on success; false if there's an error.
  * Notes: If this call is successful, then the caller is responsible for calling json_data_destroy(data).
  */
-int json_read_from_buffer(buffer buf, json_data* data) {
+bool json_read_from_buffer(buffer buf, json_data* data) {
     size_t offset = 0;
     *data = json_value_create();
-    int rtn = json_parse_value(buf, &offset, *data, false);
-    if (rtn != 0) {
+    if (!json_parse_value(buf, &offset, *data, false)) {
         fprintf(stderr, "[ERROR] Bad parse at top level.\n");
         json_data_destroy(data);
-        return rtn;
+        return false;
     }
     // Make sure there's nothing after the top-level JSON object.
-    rtn = json_parse_nothing_until_end(buf, &offset);
-    if (rtn != 0) {
+    if (!json_parse_nothing_until_end(buf, &offset)) {
         fprintf(stderr, "[ERROR] Too many values at top level.\n");
         json_data_destroy(data);
-        return rtn;
+        return false;
     }
     if ((**data).type != JSON_TYPE_OBJECT) {
         fprintf(stderr, "[ERROR] Did not find JSON object at top level.\n");
         json_data_destroy(data);
-        return 1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 // Read file into data.
-// Return 0 on success.
-int json_read_from_file(char const filename[], json_data* data) {
+// Return: true on success; false if there's an error.
+bool json_read_from_file(char const filename[], json_data* data) {
     buffer buf = buffer_create_from_file(filename);
     if (buf.len == 0) {
         fprintf(stderr, "[ERROR] Failed to read JSON data from file %s.\n", filename);
-        return 1;
+        return false;
     }
-    int rtn = json_read_from_buffer(buf, data);
+    bool rtn = json_read_from_buffer(buf, data);
     buffer_destroy(&buf);
     return rtn;
 }
