@@ -83,10 +83,12 @@ inline bool coincide(point a, point b) {
 
 typedef struct organism {
     u32 birthday;
-    u32 last_active;
+    point target;
     u16 energy;
     u16 kills;
     bool exists;
+    bool existed;
+    bool ready_to_replicate;
 } organism;
 
 typedef struct world {
@@ -208,6 +210,122 @@ int population_create(world* wld, u16 pop_id) {
 void evolve(world* wld) {
     population_params const*const pop_params = wld->params.populations;
     u16 const npops = wld->params.population_count;
+
+    // First pass: Each organism decides which direction to move.
+    for (u16 y = 0; y < wld->h; ++y) {
+        for (u16 x = 0; x < wld->w; ++x) {
+            for (u16 pop = 0; pop < npops; ++pop ) {
+                organism* org = world_map_idx(wld, x, y, pop);
+                org->existed = org->exists;
+                if (!org->exists) {
+                    continue;
+                }
+                // Passive energy gain.
+                org->energy += pop_params[pop].energy_gain;
+
+                bool org_can_move = pop_params[pop].motile;
+
+                u8 living_neighbors = 0;
+                u16 xs[3] = { (x == 0 ? wld->w - 1 : x - 1), x, (u16)(x + 1) % wld->w };
+                u16 ys[3] = { (y == 0 ? wld->h - 1 : y - 1), y, (u16)(y + 1) % wld->h };
+                for (size_t i = 0; i < 3; ++i) {
+                    for (size_t j = 0; j < 3; ++j) {
+                        if (i == 1 && j == 1) continue;
+                        point maybe = { .x = xs[j], .y = ys[i] };
+                        organism* neighbor = world_map_idx(wld, maybe.x, maybe.y, pop);
+                        if (neighbor->exists) {
+                            ++living_neighbors;
+                        }
+                    }
+                }
+
+                bool org_can_replicate =
+                    (org->energy >= pop_params[pop].energy_threshold_replicate) &&
+                    (living_neighbors + pop_params[pop].replication_space_needed <= 8);
+                org->ready_to_replicate = org_can_replicate;
+
+                if (org_can_move || org_can_replicate) {
+                    u16 xs[3] = { (x == 0 ? wld->w - 1 : x - 1), x, (u16)(x + 1) % wld->w };
+                    u16 ys[3] = { (y == 0 ? wld->h - 1 : y - 1), y, (u16)(y + 1) % wld->h };
+                    u32 ru = rand_unif(0, 7);
+                    if (ru >= 4)
+                        ++ru;
+                    org->target = (point){
+                        .x = xs[ru / 3],
+                        .y = ys[ru % 3],
+                    };
+                } else {
+                    // This one shall remain where it is.
+                    org->target = (point){.x = x, .y = y};
+                }
+            }
+        }
+    }
+
+    // Second pass: Organisms move or replicate to targets, with uniformly random choice when there is contention for
+    // the same cell.
+    for (u16 y = 0; y < wld->h; ++y) {
+        for (u16 x = 0; x < wld->w; ++x) {
+            for (u16 pop = 0; pop < npops; ++pop ) {
+                organism* org = world_map_idx(wld, x, y, pop);
+                if (org->existed) {
+                    // This site is occupied, sorry -- nobody from this population gets to move here.
+                    continue;
+                }
+
+                // Algorithm: Reservoir sampling: Each condending neighbor is selected with equal probability.
+                u8 k = 0;  // Neighbors that want to move here.
+                organism* winner = {};
+                u16 xs[3] = { (x == 0 ? wld->w - 1 : x - 1), x, (u16)(x + 1) % wld->w };
+                u16 ys[3] = { (y == 0 ? wld->h - 1 : y - 1), y, (u16)(y + 1) % wld->h };
+                for (size_t i = 0; i < 3; ++i) {
+                    for (size_t j = 0; j < 3; ++j) {
+                        if (i == 1 && j == 1) continue;
+                        point maybe = { .x = xs[j], .y = ys[i] };
+                        organism* contender = world_map_idx(wld, maybe.x, maybe.y, pop);
+                        if (contender->exists &&
+                            coincide(contender->target, (point){x, y})) {
+                            ++k;
+                            if (rand_unif(1, k) == k) {
+                                winner = contender;
+                            }
+                        }
+                    }
+                }
+
+                if (winner) {
+                    if (winner->ready_to_replicate) {
+                        // Replicate.
+                        *org = (organism){
+                            .birthday = wld->step,
+                            .energy = pop_params[pop].energy_at_birth,
+                            .kills = 0,
+                            .exists = true,
+                        };
+                        ++wld->pop_tally[pop];
+                        if (winner->energy > pop_params[pop].energy_cost_replicate) {
+                            winner->energy -= pop_params[pop].energy_cost_replicate;
+                        } else {
+                            winner->energy = 0;
+                            // Don't die yet, because there's still a chance to survive by predating.
+                        }
+                    } else {
+                        // Move.
+                        *org = *winner;
+                        *winner = (organism){ .existed = true };
+                        if (org->energy > pop_params[pop].energy_cost_move) {
+                            org->energy -= pop_params[pop].energy_cost_move;
+                        } else {
+                            org->energy = 0;
+                            // Don't die yet, because there's still a chance to survive by predating.
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Third pass: Predation and death.
     for (u16 y = 0; y < wld->h; ++y) {
         for (u16 x = 0; x < wld->w; ++x) {
             for (u16 pop = 0; pop < npops; ++pop ) {
@@ -215,104 +333,34 @@ void evolve(world* wld) {
                 if (!org->exists) {
                     continue;
                 }
-                if (org->birthday == wld->step) {
-                    // This one was born by replication during this very step; don't let it
-                    // act on the same step when it was born.
-                    continue;
-                }
-                if (org->last_active == wld->step) {
-                    // Don't let a single organism act twice in one step.
-                    continue;
-                }
 
-                // Two organisms from the same population cannot occupy the same site.
-                // Find a random available direction to move or replicate.
-                // Algorithm: Reservoir sampling: Each free neighboring cell is selected
-                // with equal probability.
-                u8 k = 0;  // Neighboring spaces unoccupied by members of same population.
-                point new_pos = {};
-                u16 xs[3] = { (x == 0 ? wld->w - 1 : x - 1), x, (u16)(x + 1) % wld->w };
-                u16 ys[3] = { (y == 0 ? wld->h - 1 : y - 1), y, (u16)(y + 1) % wld->h };
-                for (size_t i = 0; i < 3; ++i) {
-                    for (size_t j = 0; j < 3; ++j) {
-                        if (i == 1 && j == 1) continue;
-                        point maybe = { .x = xs[j], .y = ys[i] };
-                        if (!world_map_idx(wld, maybe.x, maybe.y, pop)->exists) {
-                            // This cell is unoccupied.
-                            ++k;
-                            if (rand_unif(1, k) == k) {
-                                new_pos = maybe;
-                            }
-                        }
-                    }
-                }
-
-                org->energy += pop_params[pop].energy_gain;
-
-                if (k == 0) {
-                    // There's no neighboring space available.
-                } else if ( (org->energy >= pop_params[pop].energy_threshold_replicate) &&
-                            (k >= pop_params[pop].replication_space_needed) ) {
-                    // Replicate.
-                    organism* new_slot = world_map_idx(wld, new_pos.x, new_pos.y, pop);
-                    *new_slot = (organism){
-                        .birthday = wld->step,
-                        .last_active = wld->step,
-                        .energy = pop_params[pop].energy_at_birth,
-                        .kills = 0,
-                        .exists = true,
-                    };
-                    ++wld->pop_tally[pop];
-                    if (org->energy > pop_params[pop].energy_cost_replicate) {
-                        org->energy -= pop_params[pop].energy_cost_replicate;
-                    } else {
-                        // Die: No energy remaining.
-                        *org = (organism){};                        
-                        --wld->pop_tally[pop];
+                // Predate.
+                for (u16 other_pop = 0; other_pop < npops; ++other_pop) {
+                    if (pop_params[pop].trophic_level == 0 ||
+                        pop_params[pop].trophic_level - 1 != pop_params[other_pop].trophic_level) {
+                        // This is not a prey population.
                         continue;
                     }
-                } else {
-                    // Move.
-                    if (pop_params[pop].motile) {
-                        organism* new_slot = world_map_idx(wld, new_pos.x, new_pos.y, pop);
-                        *new_slot = *org;
-                        *org = (organism){};
-                        org = new_slot;
-                    }
-
-                    // Predate.
-                    // Do this after moving, but before possibly dying of hunger.
-                    for (u16 other_pop = 0; other_pop < npops; ++other_pop) {
-                        if (pop_params[pop].trophic_level == 0 ||
-                            pop_params[pop].trophic_level - 1 != pop_params[other_pop].trophic_level) {
-                            // This is not a prey population.
-                            continue;
-                        }
-                        organism* prey = world_map_idx(wld, x, y, other_pop);
-                        if (prey->exists) {
-                            org->energy += prey->energy;
-                            *prey = (organism){};
-                            --wld->pop_tally[other_pop];
-                            ++org->kills;
-                        }
-                    }
-                    
-                    if (pop_params[pop].motile) {
-                        if (org->energy > pop_params[pop].energy_cost_move) {
-                            org->energy -= pop_params[pop].energy_cost_move;
-                        } else {
-                            // Die.
-                            *org = (organism){};
-                            --wld->pop_tally[pop];
-                            continue;
-                        }
+                    organism* prey = world_map_idx(wld, x, y, other_pop);
+                    if (prey->exists) {
+                        org->energy += prey->energy;
+                        *prey = (organism){};
+                        --wld->pop_tally[other_pop];
+                        ++org->kills;
                     }
                 }
+
+                // Die.
+                if (org->energy == 0) {
+                    *org = (organism){};
+                    --wld->pop_tally[pop];
+                }
+
                 org->energy = MIN(pop_params[pop].energy_maximum, org->energy);
-                org->last_active = wld->step;
             }
         }
     }
+
     ++wld->step;
 }
 
