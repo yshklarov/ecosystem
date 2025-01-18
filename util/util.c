@@ -694,6 +694,11 @@ bool json_parse_value_aggregate(
                 break;
             }
         } else {
+            if(got_first_child && !got_comma) {
+                fprintf(stderr, "[ERROR] Bad parse: Missing comma at offset %zu.\n", offset_new);
+                failure = true;
+                break;
+            }
             json_value *child = json_value_create();
             json_value_append_child(value, child);
             // Objects' ({...}) children are named; arrays' ([...]) children are not.
