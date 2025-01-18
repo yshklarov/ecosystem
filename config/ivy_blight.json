@@ -1,0 +1,38 @@
+{
+    "random_seed": 600,
+    "width": 400,
+    "height": 300,
+    "visual": true,
+    "run_forever": true,
+    "num_steps": 0,
+    "populations": [
+        {
+            "name": "ivy",
+            "color": "22'55'11",
+            "motile": false,
+            "trophic_level": 0,
+            "initial_population_size": 2000,
+            "energy_at_birth": 10,
+            "energy_maximum": 20,
+            "energy_threshold_replicate": 20,
+            "energy_cost_replicate": 10,
+            "energy_gain": 2,
+            "energy_cost_move": 0,
+            "replication_space_needed": 5
+        },
+        {
+            "name": "blight",
+            "color": "88'00'FF",
+            "motile": true,
+            "trophic_level": 1,
+            "initial_population_size": 5000,
+            "energy_at_birth": 10,
+            "energy_maximum": 20,
+            "energy_threshold_replicate": 20,
+            "energy_cost_replicate": 12,
+            "energy_gain": 0,
+            "energy_cost_move": 1,
+            "replication_space_needed": 3
+        }
+    ]
+}

@@ -1,0 +1,52 @@
+{
+    "random_seed": 888,
+    "width": 200,
+    "height": 200,
+    "visual": true,
+    "run_forever": true,
+    "num_steps": 0,
+    "populations": [
+        {
+            "name": "grass",
+            "color": "00'CC'22",
+            "motile": false,
+            "trophic_level": 0,
+            "initial_population_size": 5000,
+            "energy_at_birth": 5,
+            "energy_maximum": 10,
+            "energy_threshold_replicate": 10,
+            "energy_cost_replicate": 5,
+            "energy_gain": 3,
+            "energy_cost_move": 0,
+            "replication_space_needed": 3
+        },
+        {
+            "name": "rabbit",
+            "color": "FF'FF'FF",
+            "motile": true,
+            "trophic_level": 1,
+            "initial_population_size": 10000,
+            "energy_at_birth": 20,
+            "energy_maximum": 40,
+            "energy_threshold_replicate": 40,
+            "energy_cost_replicate": 20,
+            "energy_gain": 0,
+            "energy_cost_move": 1,
+            "replication_space_needed": 4
+        },
+        {
+            "name": "fox",
+            "color": "FF'33'00",
+            "motile": true,
+            "trophic_level": 2,
+            "initial_population_size": 2000,
+            "energy_at_birth": 20,
+            "energy_maximum": 100,
+            "energy_threshold_replicate": 100,
+            "energy_cost_replicate": 30,
+            "energy_gain": 0,
+            "energy_cost_move": 2,
+            "replication_space_needed": 0
+        }
+    ]
+}

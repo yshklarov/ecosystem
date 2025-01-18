@@ -1,0 +1,38 @@
+{
+    "random_seed": null,
+    "width": 200,
+    "height": 200,
+    "visual": true,
+    "run_forever": true,
+    "num_steps": 0,
+    "populations": [
+        {
+            "name": "tree",
+            "color": "00'99'00",
+            "motile": false,
+            "trophic_level": 0,
+            "initial_population_size": 100,
+            "energy_at_birth": 1,
+            "energy_maximum": 30,
+            "energy_threshold_replicate": 30,
+            "energy_cost_replicate": 1,
+            "energy_gain": 1,
+            "energy_cost_move": 0,
+            "replication_space_needed": 5
+        },
+        {
+            "name": "beetle",
+            "color": "FF'FF'88",
+            "motile": true,
+            "trophic_level": 1,
+            "initial_population_size": 100,
+            "energy_at_birth": 100,
+            "energy_maximum": 500,
+            "energy_threshold_replicate": 500,
+            "energy_cost_replicate": 300,
+            "energy_gain": 0,
+            "energy_cost_move": 1,
+            "replication_space_needed": 8
+        }
+    ]
+}
