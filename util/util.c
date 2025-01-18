@@ -404,9 +404,21 @@ json_value* json_value_create(void) {
     return (json_value*)calloc(1, sizeof(json_value));
 }
 
+void json_value_append_child(json_value* value, json_value* child) {
+    if (!value->child) {
+        value->child = child;
+    } else {
+        json_value* v = value->child;
+        while (v->next) {
+            v = v->next;
+        }
+        v->next = child;
+    }
+}
+
 // Free (and invalidate) value, including all siblings and children.
 void json_value_destroy(json_value** value) {
-    if (*value == nullptr) {
+    if (value == nullptr || *value == nullptr) {
         return;
     }
     if ((*value)->type == JSON_TYPE_STRING) {
@@ -428,21 +440,11 @@ void json_value_destroy(json_value** value) {
     *value = nullptr;
 }
 
-void json_value_append_child(json_value* value, json_value* child) {
-    if (!value->child) {
-        value->child = child;
-    } else {
-        json_value* v = value->child;
-        while (v->next) {
-            v = v->next;
-        }
-        v->next = child;
-    }
-}
-
 void json_value_destroy_all_children(json_value* value) {
     // Subsequent children are siblings of first child, so it suffices to destroy the first child.
-    json_value_destroy(&(value->child));
+    if (value) {
+        json_value_destroy(&(value->child));
+    }
 }
 
 void json_data_destroy(json_data* data) {

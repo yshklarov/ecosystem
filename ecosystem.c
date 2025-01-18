@@ -486,7 +486,7 @@ u32 parse_color(buffer *buf) {
 bool config_load(char const* filename, simulation_params* params) {
     bool config_valid = true;
 
-    json_data data;
+    json_data data = {};
     if (!json_read_from_file(filename, &data)) {
         fprintf(stderr, "Failed to parse file %s: Invalid JSON format.\n", filename);
         config_valid = false;
@@ -674,6 +674,10 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     char const* const filename = argv[1];
+    if (access(filename, R_OK) != 0) {
+        fprintf(stderr, "Cannot read file %s.\n", filename);
+        return EXIT_FAILURE;
+    }
 
 
     /**** Import parameters from file. ****/
