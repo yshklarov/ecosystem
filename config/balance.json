@@ -8,7 +8,7 @@
     "populations": [
         {
             "name": "Plant A",
-            "color": "22'FF'44"
+            "color": "22'FF'44",
             "motile": false,
             "trophic_level": 0,
             "initial_population_size": 1000,
@@ -22,7 +22,7 @@
         },
         {
             "name": "Plant B",
-            "color": "00'AA'00"
+            "color": "00'AA'00",
             "motile": false,
             "trophic_level": 0,
             "initial_population_size": 1000,
@@ -36,7 +36,7 @@
         },
         {
             "name": "Plant C",
-            "color": "CC'FF'00"
+            "color": "CC'FF'00",
             "motile": false,
             "trophic_level": 0,
             "initial_population_size": 1000,
@@ -50,7 +50,7 @@
         },
         {
             "name": "Herbivore",
-            "color": "99'77'FF"
+            "color": "99'77'FF",
             "motile": true,
             "trophic_level": 1,
             "initial_population_size": 500,
@@ -63,8 +63,8 @@
             "replication_space_needed": 6
         },
         {
-            "name": "Canivore",
-            "color": "FF'33'00"
+            "name": "Carnivore",
+            "color": "FF'33'00",
             "motile": true,
             "trophic_level": 2,
             "initial_population_size": 100,
