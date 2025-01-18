@@ -3,8 +3,8 @@
     "width": 400,
     "height": 300,
     "visual": true,
-    "run_forever": true,
-    "num_steps": 0,
+    "run_forever": false,
+    "num_steps": 8000,
     "populations": [
         {
             "name": "ivy",

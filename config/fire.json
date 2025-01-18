@@ -3,8 +3,8 @@
     "width": 128,
     "height": 128,
     "visual": true,
-    "run_forever": true,
-    "num_steps": 0,
+    "run_forever": false,
+    "num_steps": 5000,
     "populations": [
         {
             "name": "A",

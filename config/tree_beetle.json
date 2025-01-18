@@ -3,8 +3,8 @@
     "width": 200,
     "height": 200,
     "visual": true,
-    "run_forever": true,
-    "num_steps": 0,
+    "run_forever": false,
+    "num_steps": 14000,
     "populations": [
         {
             "name": "tree",

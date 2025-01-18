@@ -3,8 +3,8 @@
     "width": 300,
     "height": 300,
     "visual": true,
-    "run_forever": true,
-    "num_steps": 0,
+    "run_forever": false,
+    "num_steps": 2500,
     "populations": [
         {
             "name": "Plant A",

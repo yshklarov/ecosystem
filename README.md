@@ -1,27 +1,30 @@
 Ecosystem Simulator
 ===================
 
-This is a simulation of population dynamics.
+This is a simple simulation of population dynamics.
 
 
-Example
--------
+Usage and Examples
+------------------
 
-The simulation accepts several parameters:
+The simulation accepts a JSON-based configuration file as a command-line argument. The configuration file describes how
+each population behaves. See the [example configuration files](config/).
 
-    $ ./ecosystem <width> <height> <rabbits> <rabbits_max> <foxes> <foxes_max> <simulation_length> [random_seed]
-    
+To run:
 
-For example,
+    $ ./ecosystem <config_file.json>
 
-    $ ./ecosystem 100 100 1000 5000 1000 2000 0
+Here is a simulation of [grass, rabbits, and foxes](config/grass_rabbit_fox.json):
 
-With those parameters, the simulation settles into one of several (meta-)stable states after a few thousand time
-steps. A few of these states are shown below. Note that the lattice is toroidal (i.e., it wraps around the edge to the
-other side).
+![screenshot](results/grass_rabbit_fox_screenshot.png)
+![plot](results/grass_rabbit_fox_plot.png)
 
-The population of foxes (red dots) can be seen to be chasing the population of rabbits (white dots).
+Here is a simulation of [an ecosystem with five organisms](config/balance.json):
 
-![screenshot](screenshots/screenshot_1.png)
-![screenshot](screenshots/screenshot_2.png)
-![screenshot](screenshots/screenshot_3.png)
+![screenshot](results/balance_screenshot.png)
+![plot](results/balance_plot.png)
+
+Here is a simulation of [trees and beetles](config/tree_beetle.json):
+
+![screenshot](results/tree_beetle_screenshot.png)
+![plot](results/tree_beetle_plot.png)
