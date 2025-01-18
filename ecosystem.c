@@ -370,22 +370,23 @@ void render(
     u8 zoom
     ) {
     // Clear display.
-    for (int i = 0; i < f->width; i++) {
+    /*for (int i = 0; i < f->width; i++) {
         for (int j = 0; j < f->height; j++) {
             fenster_pixel(f, i, j) = BLACK;
         }
-    }
+    }*/
     for (u16 y = 0; y < wld->h; ++y) {
         for (u16 x = 0; x < wld->w; ++x) {
+            u32 color = BLACK;
             for (u16 pop = 0; pop < wld->params.population_count; ++pop ) {
-                u32 color = wld->params.populations[pop].color;
-                organism* const org = world_map_idx(wld, x, y, pop);
+                organism const*const org = world_map_idx(wld, x, y, pop);
                 if (org->exists) {
-                    for (u8 i = 0; i < zoom; ++i) {
-                        for (u8 j = 0; j < zoom; ++j) {
-                            fenster_pixel(f, zoom*x + i, zoom*y + j) = color;
-                        }
-                    }
+                    color = wld->params.populations[pop].color;
+                }
+            }
+            for (u8 i = 0; i < zoom; ++i) {
+                for (u8 j = 0; j < zoom; ++j) {
+                    fenster_pixel(f, zoom*x + i, zoom*y + j) = color;
                 }
             }
         }
