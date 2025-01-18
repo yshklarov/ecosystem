@@ -500,6 +500,54 @@ bool config_load(char const* filename, simulation_params* params) {
             config_valid = false;
         } else {
             *params = simulation_params_create(clamp_size_t_u16(json_count_children(jv)));
+        }
+
+
+        if (!(jv = json_find_child(data, "random_seed")) ||
+            !(jv->type == JSON_TYPE_NULL || jv->type == JSON_TYPE_INTEGER)) {
+            fprintf(stderr, "Failed to find 'random_seed'.\n");
+            config_valid = false;
+        } else {
+            if (jv->type == JSON_TYPE_NULL) {
+                params->rng_seed_given = false;
+            } else {
+                params->rng_seed_given = true;
+                params->rng_seed = (u64)(jv->datum.integer);
+            }
+        }
+        if (!(jv = json_find_child_of_type(data, "width", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'width'.\n");
+            config_valid = false;
+        } else {
+            params->w = clamp_i64_u16(jv->datum.integer);
+        }
+        if (!(jv = json_find_child_of_type(data, "height", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'height'.\n");
+            config_valid = false;
+        } else {
+            params->h = clamp_i64_u16(jv->datum.integer);
+        }
+        if (!(jv = json_find_child_of_type(data, "visual", JSON_TYPE_BOOLEAN))) {
+            fprintf(stderr, "Failed to find 'visual'.\n");
+            config_valid = false;
+        } else {
+            params->visual = jv->datum.boolean;
+        }
+        if (!(jv = json_find_child_of_type(data, "run_forever", JSON_TYPE_BOOLEAN))) {
+            fprintf(stderr, "Failed to find 'run_forever'.\n");
+            config_valid = false;
+        } else {
+            params->run_forever = jv->datum.boolean;
+        }
+        if (!(jv = json_find_child_of_type(data, "num_steps", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'num_steps'.\n");
+            config_valid = false;
+        } else {
+            params->num_steps = clamp_i64_u32(jv->datum.integer);
+        }
+
+
+        if ((jv = json_find_child_of_type(data, "populations", JSON_TYPE_ARRAY))) {
             json_value *json_pop_params = jv->child;
             size_t popid = 0;
             while (json_pop_params) {
@@ -532,11 +580,16 @@ bool config_load(char const* filename, simulation_params* params) {
                     } else {
                         params->populations[popid].trophic_level = clamp_i64_u8(jvp->datum.integer);
                     }
-                    if (!(jvp = json_find_child_of_type(json_pop_params, "initial_population_size", JSON_TYPE_INTEGER))) {
-                        fprintf(stderr, "Population has no 'initial_population_size'.\n");
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "initial_population", JSON_TYPE_FLOATING))) {
+                        fprintf(stderr, "Population has no 'initial_population'.\n");
                         config_valid = false;
                     } else {
-                        params->populations[popid].initial_population_size = clamp_i64_u32(jvp->datum.integer);
+                        if (jvp->datum.floating < 0.0 || 1.0 < jvp->datum.floating) {
+                            fprintf(stderr, "Invalid 'initial_population': Must be between 0.0 and 1.0.\n");
+                            config_valid = false;
+                        }
+                        u32 size = (u32)((f64)(params->w * params->h) * jvp->datum.floating);
+                        params->populations[popid].initial_population_size = size;
                     }
                     if (!(jvp = json_find_child_of_type(json_pop_params, "energy_at_birth", JSON_TYPE_INTEGER))) {
                         fprintf(stderr, "Population has no 'energy_at_birth'.\n");
@@ -585,49 +638,6 @@ bool config_load(char const* filename, simulation_params* params) {
                 json_pop_params = json_pop_params->next;
                 ++popid;
             }
-        }
-
-        if (!(jv = json_find_child(data, "random_seed")) ||
-            !(jv->type == JSON_TYPE_NULL || jv->type == JSON_TYPE_INTEGER)) {
-            fprintf(stderr, "Failed to find 'random_seed'.\n");
-            config_valid = false;
-        } else {
-            if (jv->type == JSON_TYPE_NULL) {
-                params->rng_seed_given = false;
-            } else {
-                params->rng_seed_given = true;
-                params->rng_seed = (u64)(jv->datum.integer);
-            }
-        }
-        if (!(jv = json_find_child_of_type(data, "width", JSON_TYPE_INTEGER))) {
-            fprintf(stderr, "Failed to find 'width'.\n");
-            config_valid = false;
-        } else {
-            params->w = clamp_i64_u16(jv->datum.integer);
-        }
-        if (!(jv = json_find_child_of_type(data, "height", JSON_TYPE_INTEGER))) {
-            fprintf(stderr, "Failed to find 'height'.\n");
-            config_valid = false;
-        } else {
-            params->h = clamp_i64_u16(jv->datum.integer);
-        }
-        if (!(jv = json_find_child_of_type(data, "visual", JSON_TYPE_BOOLEAN))) {
-            fprintf(stderr, "Failed to find 'visual'.\n");
-            config_valid = false;
-        } else {
-            params->visual = jv->datum.boolean;
-        }
-        if (!(jv = json_find_child_of_type(data, "run_forever", JSON_TYPE_BOOLEAN))) {
-            fprintf(stderr, "Failed to find 'run_forever'.\n");
-            config_valid = false;
-        } else {
-            params->run_forever = jv->datum.boolean;
-        }
-        if (!(jv = json_find_child_of_type(data, "num_steps", JSON_TYPE_INTEGER))) {
-            fprintf(stderr, "Failed to find 'num_steps'.\n");
-            config_valid = false;
-        } else {
-            params->num_steps = clamp_i64_u32(jv->datum.integer);
         }
     }
 
