@@ -1,14 +1,14 @@
 {
-    "random_seed": null,
-    "width": 256,
-    "height": 256,
+    "random_seed": 123456,
+    "width": 128,
+    "height": 128,
     "visual": true,
     "run_forever": true,
     "num_steps": 0,
     "populations": [
         {
             "name": "rabbit",
-            "color": "0xFF'FF'FF",
+            "color": "FF'FF'FF",
             "motile": true,
             "trophic_level": 1,
             "initial_population_size": 10000,
@@ -22,7 +22,7 @@
         },
         {
             "name": "fox",
-            "color": "0xFF'33'00",
+            "color": "FF'33'00",
             "motile": true,
             "trophic_level": 2,
             "initial_population_size": 1000,

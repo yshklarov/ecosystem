@@ -32,11 +32,22 @@ typedef double f64;
 #endif
 
 #define CLAMP(x, lower, upper) ((x < lower) ? (lower) : ((x > upper) ? (upper) : (x)))
+u8 clamp_i64_u8(i64 x) {
+    return (u8)CLAMP(x, 0, 0xFF);
+}
 u16 clamp_i32_u16(i32 x) {
     return (u16)CLAMP(x, 0, 0xFFFF);
 }
-
+u16 clamp_i64_u16(i64 x) {
+    return (u16)CLAMP(x, 0, 0xFFFF);
+}
+u16 clamp_size_t_u16(size_t x) {
+    return (u16)MIN(x, 0xFFFF);
+}
 u32 clamp_i32_u32(i32 x) {
+    return (u32)MAX(0, x);
+}
+u32 clamp_i64_u32(i64 x) {
     return (u32)MAX(0, x);
 }
 
@@ -168,27 +179,21 @@ void buffer_destroy(buffer* buf) {
    empty) string.
 */
 buffer buffer_create(char const* content) {
-    buffer const empty_buffer = {0, 0, nullptr};
-    if (!content) {
-        return empty_buffer;
-    } else {
-        size_t len = strlen(content);
-        if (len == 0) {
-            return empty_buffer;
-        } else {
-            buffer buf = { len, len, malloc(sizeof(char) * len) };
-            char const* src = content;
-            char* dst = buf.p;
-            for (size_t i = 0; i < len; ++i) {
-                *(dst++) = *(src++);
-            }
-            return buf;
-        }
+    if (!content || !content[0]) {
+        return (buffer){0, 0, nullptr};
     }
+    size_t len = strlen(content);
+    buffer buf = { len, len, malloc(sizeof(char) * len) };
+    char const* src = content;
+    char* dst = buf.p;
+    for (size_t i = 0; i < len; ++i) {
+        *(dst++) = *(src++);
+    }
+    return buf;
 }
 
 /* Attempt to expand the buffer's maximum length. Do not modify contents. Return true on success. */
-bool buffer_expand(buffer *buf) {
+bool buffer_expand(buffer* buf) {
     size_t new_len = (size_t)(buf->len_max + buf->len_max / 2);
     if (new_len == 0) {
         // This is the first allocation for this buffer.
@@ -205,7 +210,7 @@ bool buffer_expand(buffer *buf) {
 }
 
 /* Reclaim unused/unneeded memory at end of buffer. Does not change buf's contents or length. */
-void buffer_compress(buffer *buf) {
+void buffer_compress(buffer* buf) {
     char* new_p = (char*)realloc(buf->p, buf->len);
     if (new_p) {
         //fprintf(stderr, "[DEBUG] Compressed buffer from %zu to %zu.\n", buf->len_max, buf->len);
@@ -242,6 +247,35 @@ buffer buffer_create_from_file(char const* filename) {
     //fprintf(stderr, "[DEBUG] Created buffer from file: Length %zu, maximum %zu. Content:\n", buf.len, buf.len_max);
     //buffer_printf(buf, stderr);  // DEBUG
     return buf;
+}
+
+buffer buffer_clone(buffer const* buf) {
+    if (buf->len == 0) {
+        return (buffer){0, 0, nullptr};
+    }
+    buffer buf2 = {
+        .len = buf->len,
+        .len_max = buf->len,
+        .p = malloc(sizeof(char) * buf->len)
+    };
+    memcpy(buf2.p, buf->p, buf->len);
+    return buf2;
+}
+
+
+// Check whether buf's contents equal the null-terminated string str.
+bool buffer_eq(buffer const* buf, char const* str) {
+    for (size_t i = 0; i < buf->len; ++i) {
+        if (!str) {
+            return false;
+        }
+        if (*str == buf->p[i]) {
+            ++str;
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
 
@@ -414,6 +448,47 @@ void json_value_destroy_all_children(json_value* value) {
 void json_data_destroy(json_data* data) {
     json_value_destroy(data);
 }
+
+size_t json_count_children(json_value const* jv) {
+    json_value *child = jv->child;
+    size_t result = 0;
+    while (child) {
+        ++result;
+        child = child->next;
+    }
+    return result;
+}
+
+json_value* json_find_child(json_value const* jv, char const* name) {
+    if (!jv) {
+        return nullptr;
+    }
+    json_value *child = jv->child;
+    while (child) {
+        if (buffer_eq(&child->name->datum.string, name)) {
+            return child;
+        } else {
+            child = child->next;
+        }
+    }
+    return nullptr;
+}
+
+json_value* json_find_child_of_type(json_value const* jv, char const* name, json_type type) {
+    if (!jv) {
+        return nullptr;
+    }
+    json_value *child = jv->child;
+    while (child) {
+        if (buffer_eq(&child->name->datum.string, name) && child->type == type) {
+            return child;
+        } else {
+            child = child->next;
+        }
+    }
+    return nullptr;
+}
+
 
 // Consume a single character ch, if it is at offset. If the incorrect character is found, or if offset is the end of
 // the buffer, return false. Otherwise, increment offset and return true.

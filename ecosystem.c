@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "fenster.h"
 
@@ -53,7 +54,7 @@ typedef struct simulation_params {
 
 simulation_params simulation_params_create(u16 population_count) {
     simulation_params sp = {};
-    if ((sp.populations = (population_params*)calloc(population_count, sizeof *sp.populations))) {
+    if ((sp.populations = calloc(population_count, sizeof *sp.populations))) {
         sp.population_count = population_count;
     } else {
         fprintf(stderr, "Failed to allocate memory for simulation_params.\n");
@@ -65,8 +66,9 @@ void simulation_params_destroy(simulation_params *sp) {
     for (int i = 0; i < sp->population_count; ++i) {
         buffer_destroy(&(sp->populations[i].name));
     }
-    free(sp->populations);
     sp->population_count = 0;
+    free(sp->populations);
+    sp->populations = nullptr;
 }
 
 
@@ -103,7 +105,7 @@ organism* world_map_idx(world const* wld, u16 x, u16 y, u16 pop) {
 
 int population_create(world* wld, u16 pop_id);
 
-int world_create(world* wld, simulation_params params) {
+bool world_create(world* wld, simulation_params params) {
     wld->params = params;
     wld->w = params.w;
     wld->h = params.h;
@@ -124,15 +126,17 @@ int world_create(world* wld, simulation_params params) {
 
     for (u16 pop = 0; pop < params.population_count; ++pop) {
         if (0 != population_create(wld, pop)) {
-            return 1;
+            return false;
         }
     }
-    return 0;
+    return true;
 }
 
 void world_destroy(world* wld) {
     free(wld->pop_tally);
+    wld->pop_tally = nullptr;
     free(wld->map);
+    wld->map = nullptr;
     *wld = (world){};
 }
 
@@ -411,112 +415,229 @@ void run(world* wld, u8 zoom, bool verbose) {
     }
 }
 
-int main(int argc, char* argv[]) {
-    /**** Parse command-line arguments, and setup ****/
-
-    if (argc < 6 || 7 < argc) {
-        fprintf(stderr, "Usage: ecosystem <width> <height> <rabbits> <foxes> <simulation_length> [rng_seed]\n");
-        fprintf(stderr, "  width, height: Size of grid, e.g., 1000 by 1000\n");
-        fprintf(stderr, "  rabbits: Initial number of rabbits.\n");
-        fprintf(stderr, "  rabbits_max: Maximum number of rabbits.\n");
-        fprintf(stderr, "  foxes: Initial number of rabbits.\n");
-        fprintf(stderr, "  foxes_max: Maximum number of foxes.\n");
-        fprintf(stderr, "  simulation_length: Number of time steps to run. For infinite simulation, put 0.\n");
-        fprintf(stderr, "  random_seed: Seed for random number generator. If not given, will be picked randomly.\n");
-        return EXIT_FAILURE;
+u32 parse_color(buffer *buf) {
+    u32 result = 0;
+    for (size_t i = 0; i < buf->len; ++i) {
+        if ('0' <= buf->p[i] && buf->p[i] <= '9') {
+            result <<= 4;
+            result += (u32)(buf->p[i] - '0');
+        } else if ('A' <= buf->p[i] && buf->p[i] <= 'F') {
+            result <<= 4;
+            result += 10 + (u32)(buf->p[i] - 'A');
+        } else if ('\'' == buf->p[i]) {
+            continue;
+        } else {
+            fprintf(stderr, "Error: Invalid character in color string.\n");
+            return WHITE;
+        }
     }
+    return result;
+}
 
-    u16 w = clamp_i32_u16(atoi(argv[1]));
-    u16 h = clamp_i32_u16(atoi(argv[2]));
-    u16 rabbits = (u16)atoi(argv[3]);
-    u16 foxes = (u16)atoi(argv[4]);
-    u32 steps = clamp_i32_u32(atoi(argv[5]));
-    bool seed_given = (argc == 7);
-    u64 seed = 0;
-    if (seed_given) {
-        seed = (u64)atoi(argv[6]);
-    }
-    u8 zoom = 4;
+bool config_load(char const* filename, simulation_params* params) {
+    bool config_valid = true;
 
-    if (w < 1 || h < 1 || w > 10'000 || h > 10'000) {
-        fprintf(stderr, "Invalid world dimensions.\n");
-        return EXIT_FAILURE;
-    }
-
-    /**** Import configuration parameters from file ****/
-
-    char const* const filename = "config/foxes_and_rabbits.json";
-    json_data data = {};
+    json_data data;
     if (!json_read_from_file(filename, &data)) {
-        fprintf(stderr, "Failed to parse JSON file %s.\n", filename);
+        fprintf(stderr, "Failed to parse file %s: Invalid JSON format.\n", filename);
+        config_valid = false;
+    }
+
+    if (config_valid) {
+        json_value *jv = {};
+
+        if (!(jv = json_find_child_of_type(data, "populations", JSON_TYPE_ARRAY))) {
+            fprintf(stderr, "No 'populations' found.\n");
+            config_valid = false;
+        } else {
+            *params = simulation_params_create(clamp_size_t_u16(json_count_children(jv)));
+            json_value *json_pop_params = jv->child;
+            size_t popid = 0;
+            while (json_pop_params) {
+                if(json_pop_params->type != JSON_TYPE_OBJECT) {
+                    fprintf(stderr, "Child of 'populations' is not a JSON object.\n");
+                    config_valid = false;
+                } else {
+                    json_value *jvp = {};
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "name", JSON_TYPE_STRING))) {
+                        fprintf(stderr, "Population has no 'name'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].name = buffer_clone(&jvp->datum.string);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "color", JSON_TYPE_STRING))) {
+                        fprintf(stderr, "Population has no 'color'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].color = parse_color(&jvp->datum.string);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "motile", JSON_TYPE_BOOLEAN))) {
+                        fprintf(stderr, "Population has no 'motile'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].motile = jvp->datum.boolean;
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "trophic_level", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'trophic_level'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].trophic_level = clamp_i64_u8(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "initial_population_size", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'initial_population_size'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].initial_population_size = clamp_i64_u32(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_at_birth", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_at_birth'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_at_birth = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_maximum", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_maximum'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_maximum = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_threshold_replicate", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_threshold_replicate'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_threshold_replicate = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_cost_replicate", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_cost_replicate'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_cost_replicate = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_gain", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_gain'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_gain = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "energy_cost_move", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'energy_cost_move'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].energy_cost_move = clamp_i64_u16(jvp->datum.integer);
+                    }
+                    if (!(jvp = json_find_child_of_type(json_pop_params, "replication_space_needed", JSON_TYPE_INTEGER))) {
+                        fprintf(stderr, "Population has no 'replication_space_needed'.\n");
+                        config_valid = false;
+                    } else {
+                        params->populations[popid].replication_space_needed = clamp_i64_u8(jvp->datum.integer);
+                    }
+
+                }
+                json_pop_params = json_pop_params->next;
+                ++popid;
+            }
+        }
+
+        if (!(jv = json_find_child(data, "random_seed")) ||
+            !(jv->type == JSON_TYPE_NULL || jv->type == JSON_TYPE_INTEGER)) {
+            fprintf(stderr, "Failed to find 'random_seed'.\n");
+            config_valid = false;
+        } else {
+            if (jv->type == JSON_TYPE_NULL) {
+                params->rng_seed_given = false;
+            } else {
+                params->rng_seed_given = true;
+                params->rng_seed = (u64)(jv->datum.integer);
+            }
+        }
+        if (!(jv = json_find_child_of_type(data, "width", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'width'.\n");
+            config_valid = false;
+        } else {
+            params->w = clamp_i64_u16(jv->datum.integer);
+        }
+        if (!(jv = json_find_child_of_type(data, "height", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'height'.\n");
+            config_valid = false;
+        } else {
+            params->h = clamp_i64_u16(jv->datum.integer);
+        }
+        if (!(jv = json_find_child_of_type(data, "visual", JSON_TYPE_BOOLEAN))) {
+            fprintf(stderr, "Failed to find 'visual'.\n");
+            config_valid = false;
+        } else {
+            params->visual = jv->datum.boolean;
+        }
+        if (!(jv = json_find_child_of_type(data, "run_forever", JSON_TYPE_BOOLEAN))) {
+            fprintf(stderr, "Failed to find 'run_forever'.\n");
+            config_valid = false;
+        } else {
+            params->run_forever = jv->datum.boolean;
+        }
+        if (!(jv = json_find_child_of_type(data, "num_steps", JSON_TYPE_INTEGER))) {
+            fprintf(stderr, "Failed to find 'num_steps'.\n");
+            config_valid = false;
+        } else {
+            params->num_steps = clamp_i64_u32(jv->datum.integer);
+        }
+    }
+
+    json_data_destroy(&data);
+    if (!config_valid) {
+        simulation_params_destroy(params);
+    }
+    return config_valid;
+}
+
+bool config_validate(simulation_params const* params) {
+    char const*const error_prefix = "Invalid simulation parameters: ";
+    if (params->w < 1 || params->h < 1) {
+        fprintf(stderr, "%sInvalid world dimensions.\n", error_prefix);
+        return false;
+    }
+    for (u32 popid = 0; popid < params->population_count; ++popid) {
+        population_params const* p_params = &params->populations[popid];
+        if (!(0 <= p_params->replication_space_needed && p_params->replication_space_needed <= 8)) {
+            fprintf(stderr, "%sParameter 'replication_space_needed' is out of range.\n", error_prefix);
+            return false;
+        }
+    }
+    return true;
+}
+
+
+int main(int argc, char* argv[]) {
+
+    /**** Parse command-line arguments. ****/
+
+    if (argc != 2) {
+        fprintf(stderr, "Usage: ecosystem <config.json>\n");
+        return EXIT_FAILURE;
+    }
+    char const* const filename = argv[1];
+
+
+    /**** Import parameters from file. ****/
+
+    simulation_params params = {};
+    if (!config_load(filename, &params) || !config_validate(&params)) {
+        fprintf(stderr, "Failed to load simulation parameters.\n");
+        simulation_params_destroy(&params);
         return EXIT_FAILURE;
     }
 
-    simulation_params params;
 
-    //fprintf(stderr, "Successfully parsed JSON configuration file %s. Contents:\n", filename);
-    //json_data_printf(&data);
-    u16 population_count = 2;
-    params = simulation_params_create(population_count);
-
-    /**** vvvv TEMPORARY vvvv ****/
-
-    params.rng_seed = seed;
-    params.rng_seed_given = seed_given;
-    params.w = w;
-    params.h = h;
-    params.visual = true;
-    params.run_forever = steps == 0;
-    params.num_steps = steps;
-    params.population_count = 2;
-    params.populations[0].color = WHITE;
-    params.populations[0].name = buffer_create("rabbit");
-    params.populations[0].motile = true;
-    params.populations[0].trophic_level = 1;
-    params.populations[0].initial_population_size = rabbits;
-    params.populations[0].energy_at_birth = 5;
-    params.populations[0].energy_maximum = 15;
-    params.populations[0].energy_threshold_replicate = 15;
-    params.populations[0].energy_cost_replicate = 10;
-    params.populations[0].energy_gain = 2;
-    params.populations[0].energy_cost_move = 1;
-    params.populations[0].replication_space_needed = 5;
-    params.populations[1].color = RED;
-    params.populations[1].name = buffer_create("fox");
-    params.populations[1].motile = true;
-    params.populations[1].trophic_level = 2;
-    params.populations[1].initial_population_size = foxes;
-    params.populations[1].energy_at_birth = 20;
-    params.populations[1].energy_maximum = 100;
-    params.populations[1].energy_threshold_replicate = 80;
-    params.populations[1].energy_cost_replicate = 40;
-    params.populations[1].energy_gain = 0;
-    params.populations[1].energy_cost_move = 1;
-    params.populations[1].replication_space_needed = 8;
-
-    /**** ^^^^ TEMPORARY ^^^^ ****/
-
-    // TODO Populate simulation_params from json data.
-    // ...
-
-    json_data_destroy(&data);    
-
-    /**** Create world ****/
+    /**** Simulate. ****/
 
     world wld = {};
-    bool success = 0 == world_create(&wld, params);
-
-    //success = success && !
-    // Foxes
-    //success = success && !population_create(&wld, 1);
-
-    /**** Simulate ****/
-
-    if (success) {
+    if (!world_create(&wld, params)) {
+        fprintf(stderr, "Failed to create world.\n");
+    } else {
+        const u8 zoom = 4;
         run(&wld, zoom, true);
+        world_destroy(&wld);
     }
 
-    world_destroy(&wld);
     simulation_params_destroy(&params);
     return EXIT_SUCCESS;
 }
