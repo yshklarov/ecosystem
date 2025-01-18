@@ -427,8 +427,9 @@ void run(world* wld, u8 zoom, bool verbose) {
                 if (pop) {
                     printf(" | ");
                 }
+                fprintf(stdout, "\"");
                 buffer_printf(wld->params.populations[pop].name, stdout);
-                fprintf(stdout, ": %u", wld->pop_tally[pop]);
+                fprintf(stdout, "\": %u", wld->pop_tally[pop]);
             }
             fprintf(stdout, " }\n");
         }
