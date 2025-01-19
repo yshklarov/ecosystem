@@ -77,7 +77,7 @@ typedef struct point {
     u16 y;
 } point;
 
-inline bool coincide(point a, point b) {
+bool coincide(point a, point b) {
     return a.x == b.x && a.y == b.y;
 }
 
@@ -657,8 +657,8 @@ bool config_validate(simulation_params const* params) {
     }
     for (u32 popid = 0; popid < params->population_count; ++popid) {
         population_params const* p_params = &params->populations[popid];
-        if (!(0 <= p_params->replication_space_needed && p_params->replication_space_needed <= 8)) {
-            fprintf(stderr, "%sParameter 'replication_space_needed' is out of range.\n", error_prefix);
+        if (!(p_params->replication_space_needed <= 8)) {
+            fprintf(stderr, "%sParameter 'replication_space_needed' is out of range (valid range: 0..8).\n", error_prefix);
             return false;
         }
     }

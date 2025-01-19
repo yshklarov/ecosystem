@@ -81,7 +81,7 @@ void rand_init_from_time(rand_state* x) {
 }
 rand_state rand_state_global;
 
-inline u64 rand_raw(void) {
+u64 rand_raw(void) {
     return rand_raw_s(&rand_state_global);
 }
 
@@ -295,7 +295,7 @@ typedef enum json_type : u8 {
 
 //char const* json_type_name[JSON_TYPES_COUNT] = {
 //    "object", "array", "string", "integer", "floating", "boolean", "null" };
-static constexpr char json_type_name[JSON_TYPES_COUNT][10] = {
+static const char json_type_name[JSON_TYPES_COUNT][10] = {
     [JSON_TYPE_OBJECT] = "object\0",
     [JSON_TYPE_ARRAY] = "array\0",
     [JSON_TYPE_STRING] = "string\0",
