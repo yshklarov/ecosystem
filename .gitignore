@@ -1,3 +1,7 @@
 ecosystem
 util_json_test
 profile/*.json
+*.obj
+*.exe
+*.pdb
+*.rdbg
