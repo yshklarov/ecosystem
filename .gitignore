@@ -1,2 +1,3 @@
 ecosystem
-util/util_json_test
+util_json_test
+profile/*.json

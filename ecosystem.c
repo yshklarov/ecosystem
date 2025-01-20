@@ -492,6 +492,11 @@ bool config_load(char const* filename, simulation_params* params) {
         fprintf(stderr, "Failed to parse file %s: Invalid JSON format.\n", filename);
         config_valid = false;
     }
+    if (config_valid && data->type != JSON_TYPE_OBJECT) {
+        fprintf(stderr, "[ERROR] Did not find JSON object at top level.\n");
+        json_data_destroy(&data);
+        config_valid = false;
+    }
 
     if (config_valid) {
         json_value *jv = {};

@@ -619,7 +619,8 @@ bool json_parse_value_string(
     size_t offset_new = *offset;
     char* ch = buf.p + offset_new;
     buffer str = buffer_create("");
-    while (offset_new < buf.len && *ch != '"') {
+    bool escape = false;
+    while (offset_new < buf.len && (*ch != '"' || escape)) {
         if (str.len == str.len_max) {
             if (!buffer_expand(&str)) {
                 fprintf(stderr, "[ERROR] Bad parse: Failed to allocate memory at offset %zu.\n", *offset);
@@ -627,7 +628,37 @@ bool json_parse_value_string(
                 return false;
             }
         }
-        str.p[str.len++] = *ch;
+        if (escape) {
+            char escaped_ch = {0};
+            switch (*ch) {
+            case '"': escaped_ch = '"'; break;
+            case '\\': escaped_ch = '\\'; break;
+            case '/': escaped_ch = '/'; break;
+            case 'b': escaped_ch = '\b'; break;
+            case 'f': escaped_ch = '\f'; break;
+            case 'n': escaped_ch = '\n'; break;
+            case 'r': escaped_ch = '\r'; break;
+            case 't': escaped_ch = '\t'; break;
+            case 'u':
+                // TODO Handle Unicode escape sequences correctly.
+                escaped_ch = 'U';
+                break;
+            default:
+                fprintf(stderr, "[ERROR] Bad parse: Invalid escape sequence '\\%c' at offset %zu.\n", *ch, *offset);
+                buffer_destroy(&str);
+                return false;                
+                break;
+            }
+            str.p[str.len++] = escaped_ch;
+            escape = false;
+        } else if (*ch == '\\'
+                   // TODO This is to ignore unicode escape sequences:
+                   && (offset_new + 1 < buf.len)
+                   && *(ch+1) != 'u') {
+            escape = true;
+        } else {
+            str.p[str.len++] = *ch;
+        }
         ++ch;
         ++offset_new;
     }
@@ -927,14 +958,9 @@ bool json_read_from_buffer(buffer buf, json_data* data) {
         json_data_destroy(data);
         return false;
     }
-    // Make sure there's nothing after the top-level JSON object.
+    // Make sure there's nothing after the top-level JSON value.
     if (!json_parse_nothing_until_end(buf, &offset)) {
         fprintf(stderr, "[ERROR] Too many values at top level.\n");
-        json_data_destroy(data);
-        return false;
-    }
-    if ((**data).type != JSON_TYPE_OBJECT) {
-        fprintf(stderr, "[ERROR] Did not find JSON object at top level.\n");
         json_data_destroy(data);
         return false;
     }
