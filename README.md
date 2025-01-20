@@ -38,4 +38,4 @@ The simulation parameters are loaded from a JSON configuration file, which speci
 
 Running:
 
-    $ ./ecosystem <config_file.json>
+    $ ./build/ecosystem <config_file.json>

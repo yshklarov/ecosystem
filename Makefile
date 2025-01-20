@@ -1,4 +1,5 @@
 PROJECT := ecosystem
+BUILD_ROOT := ./build
 CC := clang
 #CC := gcc
 #CC := zig cc
@@ -8,13 +9,13 @@ CC_OPTS := -std=c17 -g3 $(OPTIMIZE_OPTS) -Wall -Wextra -Wconversion -pedantic -W
 INCLUDE_DIRS := external/inc
 LINKER_OPTS := -lX11 -lc -lm #-lasan -lubsan
 
-$(PROJECT): $(PROJECT).c util/util.c
-	$(CC) $(CC_OPTS) -isystem $(INCLUDE_DIRS) -o $(PROJECT) $(PROJECT).c $(LINKER_OPTS)
+$(PROJECT): src/$(PROJECT).c src/util.c
+	mkdir -p $(BUILD_ROOT) && \
+	$(CC) $(CC_OPTS) -isystem $(INCLUDE_DIRS) -o $(BUILD_ROOT)/$(PROJECT) src/$(PROJECT).c $(LINKER_OPTS)
 
-util_json_test: util/util_json_test.c util/util.c
-	$(CC) $(CC_OPTS) -o util/util_json_test util/util_json_test.c -lc -lm
-
-test: util_json_test
+util_json_test: src/util_json_test.c src/util.c
+	mkdir -p $(BUILD_ROOT) && \
+	$(CC) $(CC_OPTS) -o $(BUILD_ROOT)/util_json_test src/util_json_test.c $(LINKER_OPTS)
 
 clean:
-	rm -f $(PROJECT) util/util_json_test
+	rm -f build/*

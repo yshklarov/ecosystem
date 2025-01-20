@@ -7,7 +7,7 @@
 
 #include "fenster.h"
 
-#include "util/util.c"
+#include "util.c"
 
 
 #define FPS 60

@@ -6,4 +6,4 @@ then
   exit 1
 fi
 
-hyperfine "../util/util_json_test $1"
+hyperfine "../build/util_json_test $1"
