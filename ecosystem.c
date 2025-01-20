@@ -16,13 +16,13 @@
 
 #define FPS 60
 
-#define BLACK 0x00'00'00
-#define WHITE 0xFF'FF'FF
-#define YELLOW 0xFF'FF'00
-#define RED 0xFF'00'00
-#define GREEN 0x00'FF'00
-#define BLUE 0x00'00'FF
-#define CYAN 0x00'FF'FF
+#define BLACK 0x000000
+#define WHITE 0xFFFFFF
+#define YELLOW 0xFFFF00
+#define RED 0xFF0000
+#define GREEN 0x00FF00
+#define BLUE 0x0000FF
+#define CYAN 0x00FFFF
 
 
 typedef struct population_params {
@@ -53,7 +53,7 @@ typedef struct simulation_params {
 } simulation_params;
 
 simulation_params simulation_params_create(u16 population_count) {
-    simulation_params sp = {};
+    simulation_params sp = {0};
     if ((sp.populations = calloc(population_count, sizeof *sp.populations))) {
         sp.population_count = population_count;
     } else {
@@ -68,7 +68,7 @@ void simulation_params_destroy(simulation_params *sp) {
     }
     sp->population_count = 0;
     free(sp->populations);
-    sp->populations = nullptr;
+    sp->populations = NULL;
 }
 
 
@@ -136,10 +136,10 @@ bool world_create(world* wld, simulation_params params) {
 
 void world_destroy(world* wld) {
     free(wld->pop_tally);
-    wld->pop_tally = nullptr;
+    wld->pop_tally = NULL;
     free(wld->map);
-    wld->map = nullptr;
-    *wld = (world){};
+    wld->map = NULL;
+    *wld = (world){0};
 }
 
 
@@ -188,7 +188,7 @@ int population_create(world* wld, u16 pop_id) {
                 };
                 ++wld->pop_tally[pop_id];
             } else {
-                *org = (organism){};
+                *org = (organism){0};
             }
         }
     }
@@ -275,7 +275,7 @@ void evolve(world* wld) {
 
                 // Algorithm: Reservoir sampling: Each condending neighbor is selected with equal probability.
                 u8 k = 0;  // Neighbors that want to move here.
-                organism* winner = {};
+                organism* winner = {0};
                 u16 xs[3] = { (x == 0 ? wld->w - 1 : x - 1), x, (u16)(x + 1) % wld->w };
                 u16 ys[3] = { (y == 0 ? wld->h - 1 : y - 1), y, (u16)(y + 1) % wld->h };
                 for (size_t i = 0; i < 3; ++i) {
@@ -344,7 +344,7 @@ void evolve(world* wld) {
                     organism* prey = world_map_idx(wld, x, y, other_pop);
                     if (prey->exists) {
                         org->energy += prey->energy;
-                        *prey = (organism){};
+                        *prey = (organism){0};
                         --wld->pop_tally[other_pop];
                         ++org->kills;
                     }
@@ -352,7 +352,7 @@ void evolve(world* wld) {
 
                 // Die.
                 if (org->energy == 0) {
-                    *org = (organism){};
+                    *org = (organism){0};
                     --wld->pop_tally[pop];
                 }
 
@@ -399,12 +399,12 @@ void run(world* wld, u8 zoom, bool verbose) {
     i64 prev_render = 0;
     bool display_fenster = wld->params.visual;
 
-    u32* buf = nullptr;
+    u32* buf = NULL;
     struct fenster f = {
         .title = "Ecosystem Simulation",
         .width = (wld->w * zoom),
         .height = (wld->h * zoom),
-        .buf = nullptr,
+        .buf = NULL,
     };
     if (display_fenster) {
         buf = malloc((sizeof *buf) * wld->w * wld->h * zoom * zoom);
@@ -459,9 +459,9 @@ void run(world* wld, u8 zoom, bool verbose) {
 
     if (display_fenster) {
         fenster_close(&f);
-        f.buf = nullptr;
+        f.buf = NULL;
         free(buf);
-        buf = nullptr;
+        buf = NULL;
     }
 }
 
@@ -487,7 +487,7 @@ u32 parse_color(buffer *buf) {
 bool config_load(char const* filename, simulation_params* params) {
     bool config_valid = true;
 
-    json_data data = {};
+    json_data data = {0};
     if (!json_read_from_file(filename, &data)) {
         fprintf(stderr, "Failed to parse file %s: Invalid JSON format.\n", filename);
         config_valid = false;
@@ -499,7 +499,7 @@ bool config_load(char const* filename, simulation_params* params) {
     }
 
     if (config_valid) {
-        json_value *jv = {};
+        json_value *jv = {0};
 
         if (!(jv = json_find_child_of_type(data, "populations", JSON_TYPE_ARRAY))) {
             fprintf(stderr, "No 'populations' found.\n");
@@ -561,7 +561,7 @@ bool config_load(char const* filename, simulation_params* params) {
                     fprintf(stderr, "Child of 'populations' is not a JSON object.\n");
                     config_valid = false;
                 } else {
-                    json_value *jvp = {};
+                    json_value *jvp = {0};
                     if (!(jvp = json_find_child_of_type(json_pop_params, "name", JSON_TYPE_STRING))) {
                         fprintf(stderr, "Population has no 'name'.\n");
                         config_valid = false;
@@ -688,7 +688,7 @@ int main(int argc, char* argv[]) {
 
     /**** Import parameters from file. ****/
 
-    simulation_params params = {};
+    simulation_params params = {0};
     if (!config_load(filename, &params) || !config_validate(&params)) {
         fprintf(stderr, "Failed to load simulation parameters.\n");
         simulation_params_destroy(&params);
@@ -698,7 +698,7 @@ int main(int argc, char* argv[]) {
 
     /**** Simulate. ****/
 
-    world wld = {};
+    world wld = {0};
     if (!world_create(&wld, params)) {
         fprintf(stderr, "Failed to create world.\n");
     } else {

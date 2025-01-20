@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -75,7 +76,7 @@ void rand_init_from_seed(rand_state* x, u64 seed) {
 }
 void rand_init_from_time(rand_state* x) {
     struct timeval tv;
-    gettimeofday(&tv, nullptr);
+    gettimeofday(&tv, NULL);
     u64 seed = (u64)tv.tv_usec;
     rand_init_from_seed(x, seed);
 }
@@ -99,7 +100,7 @@ u32 rand_unif(u32 min, u32 max) {
     }
 }
 
-u32 rand_bool() {
+u32 rand_bool(void) {
     return rand_raw() % 2;
 }
 
@@ -138,8 +139,8 @@ void rand_combination(u32 n, u32 k, bool combination[n]) {
 typedef struct buffer {
     // Invariants:
     //   0 <= len <= len_max
-    //   If len_max != 0, then p != nullptr and p points to a valid object of length len_max bytes.
-    //   If len_max == 0, then p == nullptr.
+    //   If len_max != 0, then p != NULL and p points to a valid object of length len_max bytes.
+    //   If len_max == 0, then p == NULL.
     size_t len;
     size_t len_max;
     char* p;
@@ -150,7 +151,7 @@ bool buffer_valid(buffer const buf) {
     if (buf.len > buf.len_max) {
         return false;
     }
-    if ((buf.len_max == 0) != (buf.p == nullptr)) {
+    if ((buf.len_max == 0) != (buf.p == NULL)) {
         return false;
     }
     return true;
@@ -170,17 +171,17 @@ bool buffer_printf(buffer buf, FILE* stream) {
 /* Deallocate buf. After the call, buf will point to a valid (but empty, of length 0) buffer. */
 void buffer_destroy(buffer* buf) {
     free(buf->p);
-    buf->p = nullptr;
+    buf->p = NULL;
     buf->len = 0;
 }
 
-/* Allocate and return a new buffer whose content is a copy of the given string. If content == nullptr, or if content
-   == "", return an empty buffer.  If content != nullptr, then content must point to a null-terminated (possibly
+/* Allocate and return a new buffer whose content is a copy of the given string. If content == NULL, or if content
+   == "", return an empty buffer.  If content != NULL, then content must point to a null-terminated (possibly
    empty) string.
 */
 buffer buffer_create(char const* content) {
     if (!content || !content[0]) {
-        return (buffer){0, 0, nullptr};
+        return (buffer){0, 0, NULL};
     }
     size_t len = strlen(content);
     buffer buf = { len, len, malloc(sizeof(char) * len) };
@@ -200,7 +201,7 @@ bool buffer_expand(buffer* buf) {
         new_len = 256;
     }
     char* new_p = (char*)realloc(buf->p, new_len);
-    if (new_p == nullptr) {
+    if (new_p == NULL) {
         fprintf(stderr, "[ERROR] Failed to allocate memory: %s\n", strerror(errno));
         return false;
     }
@@ -222,13 +223,13 @@ void buffer_compress(buffer* buf) {
 }
 
 buffer buffer_create_from_file(char const* filename) {
-    buffer buf = {0, 0, nullptr};
+    buffer buf = {0, 0, NULL};
     FILE *f = fopen(filename, "r");
-    if (nullptr == f) {
+    if (NULL == f) {
         fprintf(stderr, "[ERROR] Failed to open file %s: %s\n", filename, strerror(errno));
         return buf;
     }
-    int c = {};
+    int c = {0};
     while ((c = getc(f)) != EOF) {
         if (buf.len == buf.len_max) {
             if (!buffer_expand(&buf)) {
@@ -251,7 +252,7 @@ buffer buffer_create_from_file(char const* filename) {
 
 buffer buffer_clone(buffer const* buf) {
     if (buf->len == 0) {
-        return (buffer){0, 0, nullptr};
+        return (buffer){0, 0, NULL};
     }
     buffer buf2 = {
         .len = buf->len,
@@ -282,7 +283,7 @@ bool buffer_eq(buffer const* buf, char const* str) {
 /**** JSON ****/
 
 
-typedef enum json_type : u8 {
+typedef enum json_type {
     JSON_TYPE_OBJECT,
     JSON_TYPE_ARRAY,
     JSON_TYPE_STRING,
@@ -318,8 +319,8 @@ typedef struct json_value {
     json_type type;
     json_datum datum;
     // A value is permitted to have an empty name (e.g., array members, and the root object);
-    // in that case, it will have name == nullptr. If the name is nonempty, then
-    // name->type == JSON_TYPE_STRING and name->name == name->next == name->child == nullptr.
+    // in that case, it will have name == NULL. If the name is nonempty, then
+    // name->type == JSON_TYPE_STRING and name->name == name->next == name->child == NULL.
     struct json_value* name;
     struct json_value* next;
     struct json_value* child;
@@ -418,7 +419,7 @@ void json_value_append_child(json_value* value, json_value* child) {
 
 // Free (and invalidate) value, including all siblings and children.
 void json_value_destroy(json_value** value) {
-    if (value == nullptr || *value == nullptr) {
+    if (value == NULL || *value == NULL) {
         return;
     }
     if ((*value)->type == JSON_TYPE_STRING) {
@@ -426,18 +427,18 @@ void json_value_destroy(json_value** value) {
     }
     if ((*value)->name) {
         json_value_destroy(&(*value)->name);
-        (*value)->name = nullptr;
+        (*value)->name = NULL;
     }
     if ((*value)->child) {
         json_value_destroy(&(*value)->child);
-        (*value)->child = nullptr;
+        (*value)->child = NULL;
     }
     if ((*value)->next) {
         json_value_destroy(&(*value)->next);
-        (*value)->next = nullptr;
+        (*value)->next = NULL;
     }
     free(*value);
-    *value = nullptr;
+    *value = NULL;
 }
 
 void json_value_destroy_all_children(json_value* value) {
@@ -463,7 +464,7 @@ size_t json_count_children(json_value const* jv) {
 
 json_value* json_find_child(json_value const* jv, char const* name) {
     if (!jv) {
-        return nullptr;
+        return NULL;
     }
     json_value *child = jv->child;
     while (child) {
@@ -473,12 +474,12 @@ json_value* json_find_child(json_value const* jv, char const* name) {
             child = child->next;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 json_value* json_find_child_of_type(json_value const* jv, char const* name, json_type type) {
     if (!jv) {
-        return nullptr;
+        return NULL;
     }
     json_value *child = jv->child;
     while (child) {
@@ -488,7 +489,7 @@ json_value* json_find_child_of_type(json_value const* jv, char const* name, json
             child = child->next;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 

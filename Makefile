@@ -4,7 +4,7 @@ CC := clang
 #CC := zig cc
 OPTIMIZE_OPTS := -O3 -flto
 SANITIZE_OPTS := #-fsanitize=undefined,address
-CC_OPTS := -std=c23 -g3 $(OPTIMIZE_OPTS) -Wall -Wextra -Wconversion -pedantic -Wno-missing-field-initializers -fuse-ld=mold $(SANITIZE_OPTS)
+CC_OPTS := -std=c17 -g3 $(OPTIMIZE_OPTS) -Wall -Wextra -Wconversion -pedantic -Wno-missing-field-initializers -fuse-ld=mold $(SANITIZE_OPTS)
 INCLUDE_DIRS := external/inc
 LINKER_OPTS := -lX11 -lc -lm #-lasan -lubsan
 
