@@ -1,13 +1,9 @@
-#define _POSIX_C_SOURCE 199309L
-// Fix symbol-not-defined errors due to fenster.h.
-// This is not great -- better to change (or eliminate) fenster.h.
-#include <time.h>
-#undef _POSIX_C_SOURCE
-
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "fenster.h"
 
@@ -174,7 +170,7 @@ int population_create(world* wld, u16 pop_id) {
         return 1;
     }
 
-    bool occupancy[map_cells];
+    bool *occupancy = malloc((sizeof *occupancy) * map_cells);
     rand_combination(map_cells, params->initial_population_size, occupancy);
     for (u16 y = 0; y < wld->h; ++y) {
         for (u16 x = 0; x < wld->w; ++x) {
@@ -192,6 +188,7 @@ int population_create(world* wld, u16 pop_id) {
             }
         }
     }
+    free(occupancy);
 
     if (wld->pop_tally[pop_id] != params->initial_population_size) {
         fprintf(
@@ -680,7 +677,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     char const* const filename = argv[1];
-    if (access(filename, R_OK) != 0) {
+    if (!file_exists_and_readable(filename)) {
         fprintf(stderr, "Cannot read file %s.\n", filename);
         return EXIT_FAILURE;
     }

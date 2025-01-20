@@ -12,9 +12,9 @@ $(PROJECT): $(PROJECT).c util/util.c
 	$(CC) $(CC_OPTS) -isystem $(INCLUDE_DIRS) -o $(PROJECT) $(PROJECT).c $(LINKER_OPTS)
 
 util_json_test: util/util_json_test.c util/util.c
-	$(CC) $(CC_OPTS) -o util_json_test util/util_json_test.c -lc -lm
+	$(CC) $(CC_OPTS) -o util/util_json_test util/util_json_test.c -lc -lm
 
 test: util_json_test
 
 clean:
-	rm -f $(PROJECT) util_json_test
+	rm -f $(PROJECT) util/util_json_test

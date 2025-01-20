@@ -1,6 +1,10 @@
 #include "util.c"
 
-int main(int argc, char* argv[argc+1]) {
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+int main(int argc, char* argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: json_test <json_filename>\n");
         return 1;

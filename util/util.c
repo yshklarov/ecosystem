@@ -6,7 +6,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN    // Exclude rarely-used definitions.
+#include <windows.h>
+#endif
 
 
 /**** Typedefs ****/
@@ -53,6 +59,17 @@ u32 clamp_i64_u32(i64 x) {
 }
 
 
+/**** I/O ****/
+
+bool file_exists_and_readable(char const*const filename) {
+#ifndef _WIN32
+    return access(filename, R_OK) == 0;
+#else
+    return _access(filename, 04) == 0;
+#endif
+}
+
+
 /**** Random number generator ****/
 
 // JSF (Jenkins Small Fast) random number generator
@@ -75,9 +92,16 @@ void rand_init_from_seed(rand_state* x, u64 seed) {
     }
 }
 void rand_init_from_time(rand_state* x) {
+#ifndef _WIN32
     struct timeval tv;
     gettimeofday(&tv, NULL);
     u64 seed = (u64)tv.tv_usec;
+#else
+    LARGE_INTEGER frequency, counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    u64 seed = (u64)(counter.QuadPart * 1000000000LL / frequency.QuadPart);
+#endif
     rand_init_from_seed(x, seed);
 }
 rand_state rand_state_global;
@@ -110,7 +134,7 @@ u32 rand_bool(void) {
 // Parameters:
 //    n, k: Will choose k random elements of combination to be true, and n - k to be false.
 //    combination: Must point to contiguous array of n bools.
-void rand_combination(u32 n, u32 k, bool combination[n]) {
+void rand_combination(u32 n, u32 k, bool combination[]) {
     assert(n >= k);
     for (u32 i = 0; i < n; ++i) {
         combination[i] = false;
@@ -370,7 +394,8 @@ void json_value_printf(json_value const* v, u8 indent_level) {
         printf("\"");
         break;
     case JSON_TYPE_INTEGER:
-        printf("%ld", v->datum.integer);
+        // Cast is required for win32/linux portability.
+        printf("%lld", (long long)v->datum.integer);
         break;
     case JSON_TYPE_FLOATING:
         printf("%.15lg", v->datum.floating);

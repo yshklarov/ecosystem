@@ -12,6 +12,7 @@
 #include <X11/XKBlib.h>
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
+#include <sys/time.h>
 #include <time.h>
 #endif
 
@@ -326,9 +327,9 @@ FENSTER_API void fenster_sleep(int64_t ms) {
   nanosleep(&ts, NULL);
 }
 FENSTER_API int64_t fenster_time(void) {
-  struct timespec time;
-  clock_gettime(CLOCK_REALTIME, &time);
-  return time.tv_sec * 1000 + (time.tv_nsec / 1000000);
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  return time.tv_sec * 1000 + (time.tv_usec / 1000);
 }
 #endif
 
